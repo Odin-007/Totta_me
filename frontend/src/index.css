@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles */
+* {
+  @apply transition-colors duration-200;
+}
+
+html, body {
+  @apply bg-cream text-gray-900 h-full;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  @apply antialiased;
+}
+
+/* Custom component classes */
+@layer components {
+  /* Button styles */
+  .btn {
+    @apply px-4 py-2 rounded font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply btn bg-pink-500 text-white hover:bg-pink-600 focus:ring-pink-500;
+  }
+
+  .btn-secondary {
+    @apply btn bg-earthy-100 text-earthy-700 hover:bg-earthy-200 focus:ring-earthy-400;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-500 text-white hover:bg-red-600 focus:ring-red-500;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6 transition-shadow hover:shadow-lg;
+  }
+
+  .card-pink {
+    @apply card border-l-4 border-pink-500;
+  }
+
+  .card-earthy {
+    @apply card border-l-4 border-earthy-400;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-block px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-pink {
+    @apply badge bg-pink-100 text-pink-700;
+  }
+
+  .badge-earthy {
+    @apply badge bg-earthy-100 text-earthy-700;
+  }
+
+  .badge-teal {
+    @apply badge bg-teal-100 text-teal-600;
+  }
+
+  .badge-purple {
+    @apply badge bg-purple-100 text-purple-700;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-2 border border-pink-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent;
+  }
+
+  /* Link styles */
+  .link {
+    @apply text-pink-600 hover:text-pink-700 hover:underline;
+  }
+
+  /* Heading styles */
+  .heading-1 {
+    @apply text-3xl font-bold text-pink-700;
+  }
+
+  .heading-2 {
+    @apply text-2xl font-bold text-gray-800;
+  }
+
+  .heading-3 {
+    @apply text-xl font-semibold text-gray-700;
+  }
+
+  /* Grid utilities */
+  .grid-auto {
+    @apply grid auto-cols-max gap-4;
+  }
+
+  /* Responsive grid for cards */
+  .cards-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4;
+  }
+
+  .cards-grid-2 {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4;
+  }
+}
+
+@layer utilities {
+  /* Custom utilities */
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gradient-pink-to-earthy {
+    @apply bg-gradient-to-br from-pink-100 to-earthy-100;
+  }
+
+  .gradient-pink-to-white {
+    @apply bg-gradient-to-br from-pink-50 to-white;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply bg-white/30 backdrop-blur-md border border-white/20 rounded-lg;
+  }
+
+  /* Smooth animations */
+  .fade-in {
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
