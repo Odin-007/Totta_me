@@ -5,9 +5,9 @@ Connect to Supabase PostgreSQL database
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, Column, String, Boolean, Integer, DateTime, Text, Float, ARRAY
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
 from pydantic import BaseModel, EmailStr
@@ -24,10 +24,10 @@ import json
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:password@localhost:5432/couples_app"
+    "postgresql://postgres:password@localhost:5432/totta_me"
 )
 
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-this")
+JWT_SECRET = os.getenv("JWT_SECRET", "KKfZXP7Fy0pbntt74FRkgz9i1yzEQB7lVmFh8o5t4oI")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
@@ -157,8 +157,6 @@ class CollaborativeNote(Base):
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
-    name: str
-    initials: str
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -338,7 +336,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
-def get_current_user(credentials: HTTPAuthCredentials = Depends(security), db: Session = Depends(get_db)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     token = credentials.credentials
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -359,14 +357,14 @@ def get_current_user(credentials: HTTPAuthCredentials = Depends(security), db: S
 
 app = FastAPI(
     title="Couples Memory App",
-    description="A cute app to share memories together 💕",
+    description="A cute app to share memories together",
     version="0.1.0"
 )
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://couples-app-frontend.vercel.app"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://totta_me-frontend.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -378,7 +376,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "🌹 Couples Memory App API Running! 💕", "version": "0.1.0"}
+    return {"message": "Couple Memory App API Running!", "version": "0.1.0"}
 
 @app.get("/health")
 async def health():
@@ -395,8 +393,6 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
     new_user = User(
         email=user.email,
         password_hash=hash_password(user.password),
-        name=user.name,
-        initials=user.initials
     )
     db.add(new_user)
     db.commit()
@@ -404,9 +400,7 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
     
     return UserResponse(
         id=str(new_user.id),
-        email=new_user.email,
-        name=new_user.name,
-        initials=new_user.initials
+        email=new_user.email
     )
 
 @app.post("/api/auth/login", response_model=TokenResponse)
