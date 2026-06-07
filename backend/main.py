@@ -3,20 +3,37 @@ FastAPI Backend for Couples Memory App (NO LLM)
 Connect to Supabase PostgreSQL database
 """
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import create_engine, Column, String, Boolean, Integer, DateTime, Text, Float, ARRAY
+from sqlalchemy import create_engine, Column, String, Boolean, Integer, DateTime, Text, Float, TypeDecorator
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.dialects.postgresql import UUID
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
+from typing import Optional
 import uuid
 import os
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 import json
+import httpx
+
+def load_env_file():
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, "r", encoding="utf-8") as env_file:
+        for line in env_file:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip())
+
+load_env_file()
 
 # ============================================================================
 # CONFIG
@@ -26,18 +43,78 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://postgres:password@localhost:5432/totta_me"
 )
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "memories")
+SUPPORTED_IMAGE_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+ALLOWED_USERS = {
+    "his@gmail.com": {"password": "Password@123", "name": "His", "initials": "H"},
+    "her@gmail.com": {"password": "Password@123", "name": "Her", "initials": "H"},
+}
 
 # ============================================================================
 # DATABASE SETUP
 # ============================================================================
 
-engine = create_engine(DATABASE_URL, echo=False)
+def get_engine_args(database_url: str):
+    args = {
+        "echo": False,
+        "pool_pre_ping": True,
+    }
+
+    if database_url.startswith("sqlite"):
+        args["connect_args"] = {"check_same_thread": False}
+
+    return args
+
+engine = create_engine(DATABASE_URL, **get_engine_args(DATABASE_URL))
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+class GUID(TypeDecorator):
+    impl = String(36)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return str(value)
+
+class JSONList(TypeDecorator):
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return json.dumps(value or [])
+
+    def process_result_value(self, value, dialect):
+        if not value:
+            return []
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return []
 
 def get_db():
     db = SessionLocal()
@@ -53,7 +130,7 @@ def get_db():
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     name = Column(String(100))
@@ -65,8 +142,8 @@ class User(Base):
 class TodoItem(Base):
     __tablename__ = "todo_items"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(GUID(), nullable=False)
     title = Column(String(255), nullable=False)
     completed = Column(Boolean, default=False)
     due_date = Column(DateTime, nullable=True)
@@ -77,13 +154,13 @@ class TodoItem(Base):
 class Place(Base):
     __tablename__ = "places"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(GUID(), nullable=False)
     name = Column(String(255), nullable=False)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     address = Column(Text, nullable=True)
-    tags = Column(ARRAY(String), default=[])
+    tags = Column(JSONList(), default=[])
     visited = Column(Boolean, default=False)
     visited_date = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
@@ -93,8 +170,8 @@ class Place(Base):
 class Movie(Base):
     __tablename__ = "movies"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(GUID(), nullable=False)
     title = Column(String(255), nullable=False)
     year = Column(Integer, nullable=True)
     genre = Column(String(100), nullable=True)
@@ -102,15 +179,15 @@ class Movie(Base):
     watched_date = Column(DateTime, nullable=True)
     rating = Column(Integer, nullable=True)
     review = Column(Text, nullable=True)
-    mood_tags = Column(ARRAY(String), default=[])
+    mood_tags = Column(JSONList(), default=[])
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Activity(Base):
     __tablename__ = "activities"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(GUID(), nullable=False)
     title = Column(String(255), nullable=False)
     planned_date = Column(DateTime, nullable=False)
     completed_date = Column(DateTime, nullable=True)
@@ -119,31 +196,31 @@ class Activity(Base):
     recurrence_pattern = Column(String(50), nullable=True)
     activity_time = Column(String(10), nullable=True)
     notes = Column(Text, nullable=True)
-    place_id = Column(UUID(as_uuid=True), nullable=True)
-    mood_tags = Column(ARRAY(String), default=[])
+    place_id = Column(GUID(), nullable=True)
+    mood_tags = Column(JSONList(), default=[])
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Memory(Base):
     __tablename__ = "memories"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(GUID(), nullable=False)
     memory_date = Column(DateTime, nullable=False)
     title = Column(String(255), nullable=False)
     notes = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
-    place_id = Column(UUID(as_uuid=True), nullable=True)
-    activity_id = Column(UUID(as_uuid=True), nullable=True)
-    mood_tags = Column(ARRAY(String), default=[])
+    place_id = Column(GUID(), nullable=True)
+    activity_id = Column(GUID(), nullable=True)
+    mood_tags = Column(JSONList(), default=[])
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class CollaborativeNote(Base):
     __tablename__ = "collaborative_notes"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    parent_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    parent_id = Column(GUID(), nullable=False)
     parent_type = Column(String(50), nullable=False)
     author = Column(String(1), nullable=False)
     content = Column(Text, nullable=False)
@@ -165,8 +242,8 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: str
     email: str
-    name: str
-    initials: str
+    name: str = None
+    initials: str = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -277,26 +354,26 @@ class ActivityResponse(BaseModel):
 class MemoryCreate(BaseModel):
     memory_date: datetime
     title: str
-    notes: str = None
-    photo_url: str = None
-    place_id: str = None
-    activity_id: str = None
+    notes: Optional[str] = None
+    photo_url: Optional[str] = None
+    place_id: Optional[str] = None
+    activity_id: Optional[str] = None
     mood_tags: list = []
 
 class MemoryUpdate(BaseModel):
     memory_date: datetime = None
-    title: str = None
-    notes: str = None
+    title: Optional[str] = None
+    notes: Optional[str] = None
     mood_tags: list = None
 
 class MemoryResponse(BaseModel):
     id: str
     memory_date: datetime
     title: str
-    notes: str = None
-    photo_url: str = None
-    place_id: str = None
-    activity_id: str = None
+    notes: Optional[str] = None
+    photo_url: Optional[str] = None
+    place_id: Optional[str] = None
+    activity_id: Optional[str] = None
     mood_tags: list
 
 class CollaborativeNoteCreate(BaseModel):
@@ -317,7 +394,7 @@ class CollaborativeNoteResponse(BaseModel):
 # SECURITY
 # ============================================================================
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 security = HTTPBearer()
 
 def hash_password(password: str) -> str:
@@ -335,6 +412,23 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
+
+def ensure_allowed_users(db: Session):
+    for email, user_data in ALLOWED_USERS.items():
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            user.password_hash = hash_password(user_data["password"])
+            user.name = user_data["name"]
+            user.initials = user_data["initials"]
+            continue
+
+        db.add(User(
+            email=email,
+            password_hash=hash_password(user_data["password"]),
+            name=user_data["name"],
+            initials=user_data["initials"],
+        ))
+    db.commit()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     token = credentials.credentials
@@ -362,13 +456,34 @@ app = FastAPI(
 )
 
 # CORS
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://totta_me-frontend.vercel.app",
+]
+
+if FRONTEND_URL:
+    allowed_origins.append(FRONTEND_URL)
+
+allowed_origins.extend(CORS_ORIGINS)
+allowed_origins = list(dict.fromkeys(allowed_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://totta_me-frontend.vercel.app"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ensure_allowed_users(db)
+    finally:
+        db.close()
 
 # ============================================================================
 # ROUTES - HEALTH & AUTH
@@ -384,6 +499,9 @@ async def health():
 
 @app.post("/api/auth/register", response_model=UserResponse)
 async def register(user: UserRegister, db: Session = Depends(get_db)):
+    if user.email not in ALLOWED_USERS:
+        raise HTTPException(status_code=403, detail="Registration is limited to the two configured users")
+
     # Check if user exists
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
@@ -393,6 +511,8 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
     new_user = User(
         email=user.email,
         password_hash=hash_password(user.password),
+        name=ALLOWED_USERS[user.email]["name"],
+        initials=ALLOWED_USERS[user.email]["initials"],
     )
     db.add(new_user)
     db.commit()
@@ -400,11 +520,18 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
     
     return UserResponse(
         id=str(new_user.id),
-        email=new_user.email
+        email=new_user.email,
+        name=new_user.name,
+        initials=new_user.initials
     )
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 async def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    ensure_allowed_users(db)
+
+    if credentials.email not in ALLOWED_USERS:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
     user = db.query(User).filter(User.email == credentials.email).first()
     
     if not user or not verify_password(credentials.password, user.password_hash):
@@ -702,6 +829,72 @@ async def create_note(note: CollaborativeNoteCreate, current_user: User = Depend
         content=new_note.content,
         created_at=new_note.created_at
     )
+
+# ============================================================================
+# ROUTES - UPLOADS
+# ============================================================================
+
+@app.post("/api/uploads/memory-photo")
+async def upload_memory_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase storage is not configured"
+        )
+
+    if file.content_type not in SUPPORTED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPEG, PNG, and WebP images are allowed"
+        )
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image must be smaller than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB"
+        )
+
+    extension = SUPPORTED_IMAGE_TYPES[file.content_type]
+    filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex}.{extension}"
+    storage_path = f"memories/{current_user.id}/{filename}"
+    upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{storage_path}"
+
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": file.content_type,
+        "x-upsert": "false",
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(upload_url, content=content, headers=headers)
+
+    if response.status_code >= 400:
+        try:
+            supabase_error = response.json()
+        except json.JSONDecodeError:
+            supabase_error = response.text
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Failed to upload image to Supabase Storage",
+                "supabase_status": response.status_code,
+                "supabase_error": supabase_error,
+            }
+        )
+
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/{storage_path}"
+    return {
+        "photo_url": public_url,
+        "storage_path": storage_path,
+        "content_type": file.content_type,
+        "size": len(content),
+    }
 
 # ============================================================================
 # ROUTES - DASHBOARD STATS
