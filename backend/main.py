@@ -27,7 +27,7 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:password@localhost:5432/totta_me"
 )
 
-JWT_SECRET = os.getenv("JWT_SECRET", "KKfZXP7Fy0pbntt74FRkgz9i1yzEQB7lVmFh8o5t4oI")
+JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 

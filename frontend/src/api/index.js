@@ -76,6 +76,29 @@ export const memories = {
   delete: (id) => apiClient.delete(`/api/memories/${id}`),
 }
 
+// Upload APIs
+export const uploads = {
+  memoryPhoto: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const token = localStorage.getItem('access_token')
+    const response = await fetch(`${API_URL}/api/uploads/memory-photo`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const error = new Error(data.detail || 'Upload failed')
+      error.response = { status: response.status, data }
+      throw error
+    }
+
+    return { data }
+  },
+}
+
 // Collaborative Notes APIs
 export const notes = {
   get: (parentId) => apiClient.get(`/api/notes/${parentId}`),

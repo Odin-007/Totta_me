@@ -6,49 +6,49 @@ import Header from './components/Header'
 import Dashboard from './pages/Dashboard'
 import Todos from './pages/Todo'
 import Places from './pages/Places'
+import Activities from './pages/Activities'
+import Memories from './pages/Memories'
 // import Movies from './pages/Movies'
-// import Activities from './pages/Activities'
-// import Memories from './pages/Memories'
-//import Login from './pages/Login'
-//import Register from './pages/Register'
+import Login from './pages/Login'
+// import Register from './pages/Register'
 import './App.css'
 
 function App() {
-  // ✅ Fake user for UI development (NO BACKEND REQUIRED)
-  const [user, setUser] = useState({
-    email: "demo@ui.com"
+  const [user, setUser] = useState(() => {
+    const email = localStorage.getItem('user_email')
+    return email ? { email } : null
   })
+
+  const appShell = (
+    <div className="flex h-screen bg-cream">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 overflow-auto p-6">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/todos" element={<Todos />} />
+            <Route path="/places" element={<Places />} />
+            <Route path="/activities" element={<Activities />} />
+            <Route path="/memories" element={<Memories />} />
+            {/* <Route path="/movies" element={<Movies />} /> */}
+            <Route path="*" element={<Navigate to="/dashboard" />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  )
 
   return (
     <AuthContext.Provider value={{ user, setUser }}>
       <BrowserRouter>
-        {/* ✅ Always show full app (NO LOGIN FLOW) */}
-        <div className="flex h-screen bg-cream">
-          {/* Sidebar */}
-          <Sidebar />
-          {/* Main area */}
-          <div className="flex-1 flex flex-col">
-            {/* Header */}
-            <Header />
-            {/* Pages */}
-            <main className="flex-1 overflow-auto p-6">
-              <Routes>
-                {/* Default route */}
-                <Route path="/" element={<Navigate to="/dashboard" />} />
-                {/* Core pages */}
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/todos" element={<Todos />} />
-                <Route path="/places" element={<Places />} />
-                {/* Optional pages (disabled for now) */}
-                {/* <Route path="/movies" element={<Movies />} /> */}
-                {/* <Route path="/activities" element={<Activities />} /> */}
-                {/* <Route path="/memories" element={<Memories />} /> */}
-                {/* Catch all */}
-                <Route path="*" element={<Navigate to="/dashboard" />} />
-              </Routes>
-            </main>
-          </div>
-        </div>
+        {user ? appShell : (
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
+        )}
       </BrowserRouter>
     </AuthContext.Provider>
   )
