@@ -466,9 +466,20 @@ app = FastAPI(
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
     "https://totta_me-frontend.vercel.app",
     "https://mithoonme.onrender.com",
 ]
+# Remove duplicates
+allowed_origins = list(dict.fromkeys(allowed_origins))
+
+# Debug: Print allowed origins (helpful for troubleshooting)
+print(f"🔒 CORS allowed origins: {allowed_origins}")
 
 if FRONTEND_URL:
     allowed_origins.append(FRONTEND_URL)
