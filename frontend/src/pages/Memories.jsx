@@ -117,6 +117,7 @@ export default function Memories() {
   const [memoryList, setMemoryList] = useState([])
   const [selectedMemory, setSelectedMemory] = useState(null)
   const [form, setForm] = useState(DEFAULT_MEMORY)
+  const [editingMemoryId, setEditingMemoryId] = useState(null)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [filter, setFilter] = useState('all')
@@ -170,7 +171,30 @@ export default function Memories() {
     setPhotoPreview(file ? URL.createObjectURL(file) : '')
   }
 
-  const createMemory = async (event) => {
+  const resetForm = () => {
+    setForm(DEFAULT_MEMORY)
+    setEditingMemoryId(null)
+    selectPhoto(null)
+  }
+
+  const editMemory = (memory) => {
+    setSelectedMemory(null)
+    setEditingMemoryId(memory.id)
+    setForm({
+      title: memory.title,
+      memory_date: new Date(memory.memory_date).toISOString().slice(0, 16),
+      notes: memory.notes || '',
+      mood_tags: memory.mood_tags?.join(', ') || '',
+      place_id: memory.place_id || '',
+      activity_id: memory.activity_id || '',
+    })
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoFile(null)
+    setPhotoPreview(memory.photo_url || '')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const saveMemory = async (event) => {
     event.preventDefault()
     if (!form.title.trim() || !form.memory_date) return
 
@@ -198,15 +222,36 @@ export default function Memories() {
           .filter(Boolean),
       }
 
-      const res = await memories.create(payload)
-      setMemoryList((current) => [res.data, ...current])
-      setForm(DEFAULT_MEMORY)
-      selectPhoto(null)
+      const res = editingMemoryId
+        ? await memories.update(editingMemoryId, payload)
+        : await memories.create(payload)
+
+      setMemoryList((current) => {
+        const next = editingMemoryId
+          ? current.map((memory) => memory.id === editingMemoryId ? res.data : memory)
+          : [res.data, ...current]
+        return next.sort((a, b) => new Date(b.memory_date) - new Date(a.memory_date))
+      })
+      resetForm()
     } catch (err) {
       console.error('Error creating memory:', err)
       setError(formatApiError(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const deleteMemory = async (memory) => {
+    if (!window.confirm(`Delete "${memory.title}"?`)) return
+
+    try {
+      await memories.delete(memory.id)
+      setMemoryList((current) => current.filter((item) => item.id !== memory.id))
+      setSelectedMemory(null)
+      if (editingMemoryId === memory.id) resetForm()
+    } catch (err) {
+      console.error('Error deleting memory:', err)
+      setError(formatApiError(err))
     }
   }
 
@@ -242,7 +287,7 @@ export default function Memories() {
         </div>
       </div>
 
-      <form onSubmit={createMemory} className="grid gap-3 rounded-lg border border-pink-100 bg-white p-4 shadow-sm md:grid-cols-6">
+      <form onSubmit={saveMemory} className="grid gap-3 rounded-lg border border-pink-100 bg-white p-4 shadow-sm md:grid-cols-6">
         {error && (
           <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 md:col-span-6">
             {error}
@@ -275,7 +320,7 @@ export default function Memories() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-gray-700">{photoFile?.name}</p>
               <p className="text-xs text-gray-500">
-                Will be resized to max 1600px and compressed before upload.
+                {photoFile ? 'Will be resized to max 1600px and compressed before upload.' : 'Current saved photo.'}
               </p>
             </div>
             <button
@@ -313,8 +358,13 @@ export default function Memories() {
           className="input resize-none md:col-span-5"
         />
         <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
-          {saving ? 'Compressing...' : 'Add'}
+          {saving ? 'Saving...' : editingMemoryId ? 'Update' : 'Add'}
         </button>
+        {editingMemoryId && (
+          <button type="button" onClick={resetForm} className="btn-secondary md:col-span-6">
+            Cancel Edit
+          </button>
+        )}
       </form>
 
       {loading && <p className="text-gray-500">Loading memories...</p>}
@@ -351,7 +401,12 @@ export default function Memories() {
       </div>
 
       {selectedMemory && (
-        <MemoryModal memory={selectedMemory} onClose={() => setSelectedMemory(null)} />
+        <MemoryModal
+          memory={selectedMemory}
+          onClose={() => setSelectedMemory(null)}
+          onEdit={editMemory}
+          onDelete={deleteMemory}
+        />
       )}
     </div>
   )
@@ -393,7 +448,7 @@ function TagList({ tags = [] }) {
   )
 }
 
-function MemoryModal({ memory, onClose }) {
+function MemoryModal({ memory, onClose, onEdit, onDelete }) {
   const [fullscreen, setFullscreen] = useState(false)
 
   return (
@@ -432,6 +487,14 @@ function MemoryModal({ memory, onClose }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <LinkedField label="Place" value={memory.place_id} />
                 <LinkedField label="Activity" value={memory.activity_id} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => onEdit(memory)} className="btn-secondary">
+                  Edit
+                </button>
+                <button type="button" onClick={() => onDelete(memory)} className="btn-danger">
+                  Delete
+                </button>
               </div>
             </section>
 

@@ -4,8 +4,9 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', mark: '01' },
   { to: '/todos', label: 'Todos', mark: '02' },
   { to: '/places', label: 'Places', mark: '03' },
-  { to: '/activities', label: 'Activities', mark: '04' },
-  { to: '/memories', label: 'Memories', mark: '05' },
+  { to: '/movies', label: 'Movies', mark: '04' },
+  { to: '/activities', label: 'Activities', mark: '05' },
+  { to: '/memories', label: 'Memories', mark: '06' },
 ]
 
 export default function Sidebar() {

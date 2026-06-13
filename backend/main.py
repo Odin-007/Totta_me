@@ -242,8 +242,8 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: str
     email: str
-    name: str = None
-    initials: str = None
+    name: Optional[str] = None
+    initials: Optional[str] = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -251,74 +251,77 @@ class TokenResponse(BaseModel):
 
 class TodoCreate(BaseModel):
     title: str
-    due_date: datetime = None
+    due_date: Optional[datetime] = None
 
 class TodoUpdate(BaseModel):
-    title: str = None
-    completed: bool = None
-    due_date: datetime = None
+    title: Optional[str] = None
+    completed: Optional[bool] = None
+    due_date: Optional[datetime] = None
 
 class TodoResponse(BaseModel):
     id: str
     title: str
     completed: bool
-    due_date: datetime = None
+    due_date: Optional[datetime] = None
     created_at: datetime
 
 class PlaceCreate(BaseModel):
     name: str
-    latitude: float = None
-    longitude: float = None
-    address: str = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
     tags: list = []
     visited: bool = False
-    visited_date: datetime = None
-    notes: str = None
+    visited_date: Optional[datetime] = None
+    notes: Optional[str] = None
 
 class PlaceUpdate(BaseModel):
-    name: str = None
-    visited: bool = None
-    visited_date: datetime = None
-    notes: str = None
-    tags: list = None
+    name: Optional[str] = None
+    visited: Optional[bool] = None
+    visited_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    tags: Optional[list] = None
 
 class PlaceResponse(BaseModel):
     id: str
     name: str
-    latitude: float = None
-    longitude: float = None
-    address: str = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
     tags: list
     visited: bool
-    visited_date: datetime = None
-    notes: str = None
+    visited_date: Optional[datetime] = None
+    notes: Optional[str] = None
 
 class MovieCreate(BaseModel):
     title: str
-    year: int = None
-    genre: str = None
+    year: Optional[int] = None
+    genre: Optional[str] = None
     watched: bool = False
-    watched_date: datetime = None
-    rating: int = None
-    review: str = None
+    watched_date: Optional[datetime] = None
+    rating: Optional[int] = None
+    review: Optional[str] = None
     mood_tags: list = []
 
 class MovieUpdate(BaseModel):
-    watched: bool = None
-    watched_date: datetime = None
-    rating: int = None
-    review: str = None
-    mood_tags: list = None
+    title: Optional[str] = None
+    year: Optional[int] = None
+    genre: Optional[str] = None
+    watched: Optional[bool] = None
+    watched_date: Optional[datetime] = None
+    rating: Optional[int] = None
+    review: Optional[str] = None
+    mood_tags: Optional[list] = None
 
 class MovieResponse(BaseModel):
     id: str
     title: str
-    year: int = None
-    genre: str = None
+    year: Optional[int] = None
+    genre: Optional[str] = None
     watched: bool
-    watched_date: datetime = None
-    rating: int = None
-    review: str = None
+    watched_date: Optional[datetime] = None
+    rating: Optional[int] = None
+    review: Optional[str] = None
     mood_tags: list
 
 class ActivityCreate(BaseModel):
@@ -326,29 +329,29 @@ class ActivityCreate(BaseModel):
     planned_date: datetime
     category: str = "general"
     is_recurring: bool = False
-    recurrence_pattern: str = None
-    activity_time: str = None
-    notes: str = None
-    place_id: str = None
+    recurrence_pattern: Optional[str] = None
+    activity_time: Optional[str] = None
+    notes: Optional[str] = None
+    place_id: Optional[str] = None
     mood_tags: list = []
 
 class ActivityUpdate(BaseModel):
-    title: str = None
-    planned_date: datetime = None
-    completed_date: datetime = None
-    category: str = None
-    notes: str = None
-    mood_tags: list = None
+    title: Optional[str] = None
+    planned_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    mood_tags: Optional[list] = None
 
 class ActivityResponse(BaseModel):
     id: str
     title: str
     planned_date: datetime
-    completed_date: datetime = None
+    completed_date: Optional[datetime] = None
     category: str
     is_recurring: bool
-    notes: str = None
-    place_id: str = None
+    notes: Optional[str] = None
+    place_id: Optional[str] = None
     mood_tags: list
 
 class MemoryCreate(BaseModel):
@@ -361,10 +364,13 @@ class MemoryCreate(BaseModel):
     mood_tags: list = []
 
 class MemoryUpdate(BaseModel):
-    memory_date: datetime = None
+    memory_date: Optional[datetime] = None
     title: Optional[str] = None
     notes: Optional[str] = None
-    mood_tags: list = None
+    photo_url: Optional[str] = None
+    place_id: Optional[str] = None
+    activity_id: Optional[str] = None
+    mood_tags: Optional[list] = None
 
 class MemoryResponse(BaseModel):
     id: str
@@ -711,6 +717,41 @@ async def create_movie(movie: MovieCreate, current_user: User = Depends(get_curr
         mood_tags=new_movie.mood_tags or []
     )
 
+@app.patch("/api/movies/{movie_id}", response_model=MovieResponse)
+async def update_movie(movie_id: str, movie_update: MovieUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    movie = db.query(Movie).filter(Movie.id == movie_id, Movie.user_id == current_user.id).first()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    update_data = movie_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(movie, field, value)
+
+    db.commit()
+    db.refresh(movie)
+
+    return MovieResponse(
+        id=str(movie.id),
+        title=movie.title,
+        year=movie.year,
+        genre=movie.genre,
+        watched=movie.watched,
+        watched_date=movie.watched_date,
+        rating=movie.rating,
+        review=movie.review,
+        mood_tags=movie.mood_tags or []
+    )
+
+@app.delete("/api/movies/{movie_id}")
+async def delete_movie(movie_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    movie = db.query(Movie).filter(Movie.id == movie_id, Movie.user_id == current_user.id).first()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    db.delete(movie)
+    db.commit()
+    return {"message": "Movie deleted"}
+
 # ============================================================================
 # ROUTES - ACTIVITIES (Abbreviated)
 # ============================================================================
@@ -752,6 +793,41 @@ async def create_activity(activity: ActivityCreate, current_user: User = Depends
         mood_tags=new_activity.mood_tags or []
     )
 
+@app.patch("/api/activities/{activity_id}", response_model=ActivityResponse)
+async def update_activity(activity_id: str, activity_update: ActivityUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    activity = db.query(Activity).filter(Activity.id == activity_id, Activity.user_id == current_user.id).first()
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    update_data = activity_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(activity, field, value)
+
+    db.commit()
+    db.refresh(activity)
+
+    return ActivityResponse(
+        id=str(activity.id),
+        title=activity.title,
+        planned_date=activity.planned_date,
+        completed_date=activity.completed_date,
+        category=activity.category,
+        is_recurring=activity.is_recurring,
+        notes=activity.notes,
+        place_id=str(activity.place_id) if activity.place_id else None,
+        mood_tags=activity.mood_tags or []
+    )
+
+@app.delete("/api/activities/{activity_id}")
+async def delete_activity(activity_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    activity = db.query(Activity).filter(Activity.id == activity_id, Activity.user_id == current_user.id).first()
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    db.delete(activity)
+    db.commit()
+    return {"message": "Activity deleted"}
+
 # ============================================================================
 # ROUTES - MEMORIES (Abbreviated)
 # ============================================================================
@@ -790,6 +866,40 @@ async def create_memory(memory: MemoryCreate, current_user: User = Depends(get_c
         activity_id=str(new_memory.activity_id) if new_memory.activity_id else None,
         mood_tags=new_memory.mood_tags or []
     )
+
+@app.patch("/api/memories/{memory_id}", response_model=MemoryResponse)
+async def update_memory(memory_id: str, memory_update: MemoryUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == current_user.id).first()
+    if not memory:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    update_data = memory_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(memory, field, value)
+
+    db.commit()
+    db.refresh(memory)
+
+    return MemoryResponse(
+        id=str(memory.id),
+        memory_date=memory.memory_date,
+        title=memory.title,
+        notes=memory.notes,
+        photo_url=memory.photo_url,
+        place_id=str(memory.place_id) if memory.place_id else None,
+        activity_id=str(memory.activity_id) if memory.activity_id else None,
+        mood_tags=memory.mood_tags or []
+    )
+
+@app.delete("/api/memories/{memory_id}")
+async def delete_memory(memory_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.user_id == current_user.id).first()
+    if not memory:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    db.delete(memory)
+    db.commit()
+    return {"message": "Memory deleted"}
 
 # ============================================================================
 # ROUTES - COLLABORATIVE NOTES

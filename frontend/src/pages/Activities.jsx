@@ -10,20 +10,6 @@ const CATEGORIES = {
     badge: 'bg-pink-100 text-pink-700',
     panel: 'bg-pink-50',
   },
-  adventure: {
-    label: 'Adventure',
-    accent: 'bg-teal-400',
-    border: 'border-teal-400',
-    badge: 'bg-teal-100 text-teal-700',
-    panel: 'bg-teal-50',
-  },
-  relaxation: {
-    label: 'Relaxation',
-    accent: 'bg-purple-200',
-    border: 'border-purple-200',
-    badge: 'bg-purple-100 text-purple-700',
-    panel: 'bg-purple-50',
-  },
   learning: {
     label: 'Learning',
     accent: 'bg-blue-400',
@@ -68,6 +54,7 @@ export default function Activities() {
   const [activityList, setActivityList] = useState([])
   const [selectedActivity, setSelectedActivity] = useState(null)
   const [form, setForm] = useState(DEFAULT_ACTIVITY)
+  const [editingActivityId, setEditingActivityId] = useState(null)
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -100,7 +87,25 @@ export default function Activities() {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
-  const createActivity = async (event) => {
+  const resetForm = () => {
+    setForm(DEFAULT_ACTIVITY)
+    setEditingActivityId(null)
+  }
+
+  const editActivity = (activity) => {
+    setEditingActivityId(activity.id)
+    setForm({
+      title: activity.title,
+      planned_date: toDateInputValue(activity.planned_date),
+      category: activity.category || 'date',
+      activity_time: toDateInputValue(activity.planned_date).slice(11),
+      notes: activity.notes || '',
+      mood_tags: activity.mood_tags?.join(', ') || '',
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const saveActivity = async (event) => {
     event.preventDefault()
     if (!form.title.trim() || !form.planned_date) return
 
@@ -118,13 +123,47 @@ export default function Activities() {
 
     try {
       setSaving(true)
-      const res = await activities.create(payload)
-      setActivityList((current) => [...current, res.data].sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date)))
-      setForm(DEFAULT_ACTIVITY)
+      const res = editingActivityId
+        ? await activities.update(editingActivityId, payload)
+        : await activities.create(payload)
+
+      setActivityList((current) => {
+        const next = editingActivityId
+          ? current.map((activity) => activity.id === editingActivityId ? res.data : activity)
+          : [...current, res.data]
+        return next.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))
+      })
+      setSelectedActivity(res.data)
+      resetForm()
     } catch (err) {
-      console.error('Error creating activity:', err)
+      console.error('Error saving activity:', err)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const toggleComplete = async (activity) => {
+    try {
+      const res = await activities.update(activity.id, {
+        completed_date: activity.completed_date ? null : new Date().toISOString(),
+      })
+      setActivityList((current) => current.map((item) => item.id === activity.id ? res.data : item))
+      setSelectedActivity(res.data)
+    } catch (err) {
+      console.error('Error updating activity:', err)
+    }
+  }
+
+  const deleteActivity = async (activity) => {
+    if (!window.confirm(`Delete "${activity.title}"?`)) return
+
+    try {
+      await activities.delete(activity.id)
+      setActivityList((current) => current.filter((item) => item.id !== activity.id))
+      setSelectedActivity(null)
+      if (editingActivityId === activity.id) resetForm()
+    } catch (err) {
+      console.error('Error deleting activity:', err)
     }
   }
 
@@ -136,7 +175,7 @@ export default function Activities() {
           <h1 className="heading-1">Activities Timeline</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['all', 'upcoming', 'completed', 'date', 'adventure', 'relaxation', 'learning'].map((item) => (
+          {['all', 'upcoming', 'completed', 'date', 'learning'].map((item) => (
             <button
               key={item}
               type="button"
@@ -153,7 +192,7 @@ export default function Activities() {
         </div>
       </div>
 
-      <form onSubmit={createActivity} className="grid gap-3 rounded-lg border border-pink-100 bg-white p-4 shadow-sm md:grid-cols-6">
+      <form onSubmit={saveActivity} className="grid gap-3 rounded-lg border border-pink-100 bg-white p-4 shadow-sm md:grid-cols-6">
         <input
           value={form.title}
           onChange={(event) => updateForm('title', event.target.value)}
@@ -176,8 +215,13 @@ export default function Activities() {
           ))}
         </select>
         <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
-          {saving ? 'Saving...' : 'Add'}
+          {saving ? 'Saving...' : editingActivityId ? 'Update' : 'Add'}
         </button>
+        {editingActivityId && (
+          <button type="button" onClick={resetForm} className="btn-secondary">
+            Cancel
+          </button>
+        )}
         <input
           value={form.mood_tags}
           onChange={(event) => updateForm('mood_tags', event.target.value)}
@@ -268,6 +312,17 @@ export default function Activities() {
                           {activity.notes}
                         </p>
                       )}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button type="button" onClick={() => editActivity(activity)} className="btn-secondary">
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => toggleComplete(activity)} className="btn-primary">
+                          {activity.completed_date ? 'Mark Upcoming' : 'Mark Done'}
+                        </button>
+                        <button type="button" onClick={() => deleteActivity(activity)} className="btn-danger">
+                          Delete
+                        </button>
+                      </div>
                       <div className="mt-4">
                         <CollaborativeNotes parentId={activity.id} parentType="activity" />
                       </div>

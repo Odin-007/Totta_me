@@ -8,7 +8,7 @@ import Todos from './pages/Todo'
 import Places from './pages/Places'
 import Activities from './pages/Activities'
 import Memories from './pages/Memories'
-// import Movies from './pages/Movies'
+import Movies from './pages/Movies'
 import Login from './pages/Login'
 // import Register from './pages/Register'
 import './App.css'
@@ -30,9 +30,9 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/todos" element={<Todos />} />
             <Route path="/places" element={<Places />} />
+            <Route path="/movies" element={<Movies />} />
             <Route path="/activities" element={<Activities />} />
             <Route path="/memories" element={<Memories />} />
-            {/* <Route path="/movies" element={<Movies />} /> */}
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </main>
