@@ -567,17 +567,6 @@ async def head_root():
     return {}
 
 
-@app.on_event("startup")
-async def startup_event():
-    try:
-        # Test database connection
-        db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
-        print("✅ Database connection successful")
-    except Exception as e:
-        print(f"❌ Database connection failed: {e}")
-        raise
 # ============================================================================
 # ROUTES - TODOS
 # ============================================================================
