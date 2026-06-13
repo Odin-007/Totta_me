@@ -18,6 +18,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 import json
 import httpx
+from sqlalchemy import text
 
 def load_env_file():
     env_path = os.path.join(os.path.dirname(__file__), ".env")
