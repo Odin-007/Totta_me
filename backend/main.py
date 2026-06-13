@@ -474,6 +474,7 @@ allowed_origins = [
     "http://127.0.0.1:5175",
     "https://totta_me-frontend.vercel.app",
     "https://mithoonme.onrender.com",
+    https://backend-sibb.onrender.com,
 ]
 # Remove duplicates
 allowed_origins = list(dict.fromkeys(allowed_origins))
