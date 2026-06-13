@@ -557,6 +557,26 @@ async def get_me(current_user: User = Depends(get_current_user)):
         initials=current_user.initials
     )
 
+@app.get("/")
+async def root():
+    return {"message": "Backend is running"}
+
+@app.head("/")
+async def head_root():
+    return {}
+
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        # Test database connection
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        print("✅ Database connection successful")
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        raise
 # ============================================================================
 # ROUTES - TODOS
 # ============================================================================
