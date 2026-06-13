@@ -466,6 +466,7 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://totta_me-frontend.vercel.app",
+    "https://mithoonme.onrender.com",
 ]
 
 if FRONTEND_URL:
