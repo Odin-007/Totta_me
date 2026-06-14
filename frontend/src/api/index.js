@@ -13,37 +13,29 @@ const apiClient = axios.create({
 })
 
 // Add token to requests
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    // Token expired or invalid
-    if (error.response?.status === 401) {
-      // Clear all auth data
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user_id')
-      localStorage.removeItem('user_email')
-      
-      // Redirect to login if not already there
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login'
-      }
-      
-      return Promise.reject(new Error('Session expired. Please login again.'))
-    }
-    
-    // Forbidden
-    if (error.response?.status === 403) {
-      return Promise.reject(new Error('You don\'t have permission to do this.'))
-    }
-    
-    // Server error
-    if (error.response?.status >= 500) {
-      return Promise.reject(new Error('Server error. Please try again later.'))
-    }
-    
-    return Promise.reject(error)
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
   }
-)
+  return config
+})
+ 
+// TEMPORARILY DISABLED - Testing if this causes the redirect loop
+// apiClient.interceptors.response.use(
+//   (response) => response,
+//   async (error) => {
+//     if (error.response?.status === 401) {
+//       localStorage.removeItem('access_token')
+//       localStorage.removeItem('user_id')
+//       localStorage.removeItem('user_email')
+//       if (!window.location.pathname.includes('/login')) {
+//         window.location.href = '/login'
+//       }
+//     }
+//     return Promise.reject(error)
+//   }
+// )
 
 // Auth APIs
 export const auth = {
