@@ -13,14 +13,9 @@ import Movies from './pages/Movies'
 import Login from './pages/Login'
 import './App.css'
 
-function App() {
-  const [user, setUser] = useState(() => {
-    const email = localStorage.getItem('user_email')
-    return email ? { email } : null
-  })
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  const appShell = (
+// Separate component for the app shell - this MUST be inside Router
+function AppShell({ sidebarOpen, setSidebarOpen }) {
+  return (
     <div className="flex h-screen bg-cream overflow-hidden">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
@@ -40,6 +35,24 @@ function App() {
       </div>
     </div>
   )
+}
+
+// Login component wrapper
+function LoginPage() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
+  )
+}
+
+function App() {
+  const [user, setUser] = useState(() => {
+    const email = localStorage.getItem('user_email')
+    return email ? { email } : null
+  })
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <BrowserRouter>
@@ -69,11 +82,10 @@ function App() {
             },
           }}
         />
-        {user ? appShell : (
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
+        {user ? (
+          <AppShell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        ) : (
+          <LoginPage />
         )}
       </AuthContext.Provider>
     </BrowserRouter>
