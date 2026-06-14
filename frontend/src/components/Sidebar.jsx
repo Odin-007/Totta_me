@@ -32,7 +32,6 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between mb-8 lg:block">
           <div className="flex items-center gap-2">
-            <span className="text-3xl heart-beat">💕</span>
             <h1 className="text-2xl font-bold gradient-text">Our App</h1>
           </div>
           <button
