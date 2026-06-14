@@ -63,11 +63,15 @@ export default function Sidebar({ isOpen, onClose }) {
               `}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              <span className="text-xl">{item.icon}</span>
-              <span className="flex-1">{item.label}</span>
-              <span className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
-                {item.mark}
-              </span>
+              {({ isActive }) => (
+                <>
+                  <span className="text-xl">{item.icon}</span>
+                  <span className="flex-1">{item.label}</span>
+                  <span className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
+                    {item.mark}
+                  </span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
