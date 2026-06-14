@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import AuthContext from './context/AuthContext'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
@@ -17,16 +18,14 @@ function App() {
     const email = localStorage.getItem('user_email')
     return email ? { email } : null
   })
-
-  // SIMPLIFIED: No auth verification, just check localStorage
-  // Remove the entire useEffect that calls auth.getMe()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const appShell = (
-    <div className="flex h-screen bg-cream">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header />
-        <main className="flex-1 overflow-auto p-6">
+    <div className="flex h-screen bg-cream overflow-hidden">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 overflow-auto p-4 lg:p-6">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/dashboard" element={<Dashboard />} />
@@ -45,6 +44,31 @@ function App() {
   return (
     <AuthContext.Provider value={{ user, setUser }}>
       <BrowserRouter>
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#fff',
+              color: '#1f2937',
+              padding: '16px',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px 0 rgba(236, 72, 153, 0.2)',
+            },
+            success: {
+              iconTheme: {
+                primary: '#ec4899',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
         {user ? appShell : (
           <Routes>
             <Route path="/login" element={<Login />} />
