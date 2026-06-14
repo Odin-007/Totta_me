@@ -1,83 +1,89 @@
-import { useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
-import AuthContext from './context/AuthContext'
-import Sidebar from './components/Sidebar'
-import Header from './components/Header'
-import Dashboard from './pages/Dashboard'
-import Todos from './pages/Todo'
-import Places from './pages/Places'
-import Activities from './pages/Activities'
-import Memories from './pages/Memories'
-import Movies from './pages/Movies'
-import Login from './pages/Login'
-import './App.css'
+import { NavLink } from 'react-router-dom'
 
-function App() {
-  const [user, setUser] = useState(() => {
-    const email = localStorage.getItem('user_email')
-    return email ? { email } : null
-  })
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+const NAV_ITEMS = [
+  { to: '/dashboard', label: 'Dashboard', mark: '01', icon: '📊' },
+  { to: '/todos', label: 'Todos', mark: '02', icon: '✓' },
+  { to: '/places', label: 'Places', mark: '03', icon: '📍' },
+  { to: '/movies', label: 'Movies', mark: '04', icon: '🎬' },
+  { to: '/activities', label: 'Activities', mark: '05', icon: '🎯' },
+  { to: '/memories', label: 'Memories', mark: '06', icon: '💕' },
+]
 
-  const appShell = (
-    <div className="flex h-screen bg-cream overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-auto p-4 lg:p-6">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/todos" element={<Todos />} />
-            <Route path="/places" element={<Places />} />
-            <Route path="/movies" element={<Movies />} />
-            <Route path="/activities" element={<Activities />} />
-            <Route path="/memories" element={<Memories />} />
-            <Route path="*" element={<Navigate to="/dashboard" />} />
-          </Routes>
-        </main>
-      </div>
-    </div>
-  )
-
+export default function Sidebar({ isOpen, onClose }) {
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
-      <BrowserRouter>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#fff',
-              color: '#1f2937',
-              padding: '16px',
-              borderRadius: '12px',
-              boxShadow: '0 10px 40px 0 rgba(236, 72, 153, 0.2)',
-            },
-            success: {
-              iconTheme: {
-                primary: '#ec4899',
-                secondary: '#fff',
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#fff',
-              },
-            },
-          }}
+    <>
+      {/* Overlay for mobile */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden fade-in"
+          onClick={onClose}
+          aria-hidden="true"
         />
-        {user ? appShell : (
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
-        )}
-      </BrowserRouter>
-    </AuthContext.Provider>
+      )}
+      
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        w-64 border-r border-pink-200 bg-white p-6
+        transform transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        shadow-xl lg:shadow-none
+      `}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8 lg:block">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl heart-beat">💕</span>
+            <h1 className="text-2xl font-bold gradient-text">Our App</h1>
+          </div>
+          <button
+            onClick={onClose}
+            className="lg:hidden text-gray-500 hover:text-pink-600 p-2 rounded-lg hover:bg-pink-50 smooth-transition"
+            aria-label="Close menu"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        {/* Navigation */}
+        <nav className="space-y-2">
+          {NAV_ITEMS.map((item, index) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={onClose}
+              className={({ isActive }) => `
+                flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold 
+                smooth-transition slide-in-right
+                ${isActive
+                  ? 'gradient-primary text-white shadow-pink-md'
+                  : 'text-gray-600 hover:bg-pink-50 hover:text-pink-700'
+                }
+              `}
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              {({ isActive }) => (
+                <>
+                  <span className="text-xl">{item.icon}</span>
+                  <span className="flex-1">{item.label}</span>
+                  <span className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
+                    {item.mark}
+                  </span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+        
+        {/* Footer */}
+        <div className="absolute bottom-6 left-6 right-6">
+          <div className="glass-card rounded-xl p-4 text-center">
+            <p className="text-xs text-gray-600 mb-1">Made with</p>
+            <p className="text-2xl">💕</p>
+          </div>
+        </div>
+      </aside>
+    </>
   )
 }
-
-export default App
