@@ -79,8 +79,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Footer */}
         <div className="absolute bottom-6 left-6 right-6">
           <div className="glass-card rounded-xl p-4 text-center">
-            <p className="text-xs text-gray-600 mb-1">Made with</p>
-            <p className="text-2xl">💕</p>
+            <p className="text-xs text-gray-600 mb-1">Made by CA</p>
           </div>
         </div>
       </aside>
