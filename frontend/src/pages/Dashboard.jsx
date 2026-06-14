@@ -104,8 +104,8 @@ export default function Dashboard() {
         <StatCard 
           label="Days Together" 
           value={stats.days_together || 0} 
-          icon="💕"
-          color="pink"
+          icon="💋"
+          color="red"
         />
         <StatCard 
           label="Places Visited" 
