@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { memories, uploads } from '../api'
 import CollaborativeNotes from '../components/CollaborativeNotes'
+import toast from 'react-hot-toast'
+import EmptyState from '../components/EmptyState'
 
 const MOOD_STYLES = {
   romantic: 'bg-pink-100 text-pink-700',
@@ -255,162 +257,199 @@ export default function Memories() {
     }
   }
 
+  const handlePhotoSelect = (e) => {
+  const file = e.target.files?.[0]
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB')
+      return
+    }
+    selectPhoto(file)
+  }
+}
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-earthy-600">Photo notes and keepsakes</p>
-          <h1 className="heading-1">Best Memories</h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="space-y-6 slide-in-up">
+    {/* Header with filters */}
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-pink-600">
+          Photo notes and keepsakes
+        </p>
+        <h1 className="heading-1 gradient-text">Best Memories</h1>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setFilter('all')}
+          className={`px-4 py-2 rounded-full text-sm font-semibold smooth-transition touch-target ${
+            filter === 'all' 
+              ? 'gradient-primary text-white shadow-pink-md' 
+              : 'bg-white text-gray-600 border border-pink-200 hover:border-pink-400'
+          }`}
+        >
+          All
+        </button>
+        {tags.map((tag) => (
           <button
+            key={tag}
             type="button"
-            onClick={() => setFilter('all')}
-            className={`rounded-md px-3 py-2 text-sm font-semibold ${
-              filter === 'all' ? 'bg-pink-500 text-white' : 'bg-white text-gray-600 ring-1 ring-pink-100'
+            onClick={() => setFilter(tag)}
+            className={`px-4 py-2 rounded-full text-sm font-semibold capitalize smooth-transition touch-target ${
+              filter === tag 
+                ? 'gradient-primary text-white shadow-pink-md' 
+                : 'bg-white text-gray-600 border border-pink-200 hover:border-pink-400'
             }`}
           >
-            All
+            {tag}
           </button>
-          {tags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => setFilter(tag)}
-              className={`rounded-md px-3 py-2 text-sm font-semibold capitalize ${
-                filter === tag ? 'bg-pink-500 text-white' : 'bg-white text-gray-600 ring-1 ring-pink-100'
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
+    </div>
 
-      <form onSubmit={saveMemory} className="grid gap-3 rounded-lg border border-pink-100 bg-white p-4 shadow-sm md:grid-cols-6">
-        {error && (
-          <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 md:col-span-6">
-            {error}
-          </div>
-        )}
+    {/* Add Memory Form */}
+    <form onSubmit={saveMemory} className="card space-y-4">
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm slide-in-up">
+          {error}
+        </div>
+      )}
+      
+      <div className="grid gap-4 lg:grid-cols-2">
         <input
           value={form.title}
           onChange={(event) => updateForm('title', event.target.value)}
-          placeholder="Memory title"
-          className="input md:col-span-2"
+          placeholder="Memory title *"
+          className="input"
+          required
         />
         <input
           type="datetime-local"
           value={form.memory_date}
           onChange={(event) => updateForm('memory_date', event.target.value)}
-          className="input md:col-span-2"
+          className="input"
+          required
         />
-        <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-pink-200 bg-pink-50 px-4 py-2 text-sm font-semibold text-pink-700 hover:bg-pink-100 md:col-span-2">
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => selectPhoto(event.target.files?.[0])}
-            className="sr-only"
-          />
-          {photoFile ? 'Change Photo' : 'Choose Photo'}
-        </label>
-        {photoPreview && (
-          <div className="flex items-center gap-3 rounded-lg border border-pink-100 bg-cream p-2 md:col-span-6">
-            <img src={photoPreview} alt="Selected memory preview" className="h-20 w-20 rounded-md object-cover" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-gray-700">{photoFile?.name}</p>
-              <p className="text-xs text-gray-500">
-                {photoFile ? 'Will be resized to max 1600px and compressed before upload.' : 'Current saved photo.'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => selectPhoto(null)}
-              className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-600 ring-1 ring-pink-100 hover:bg-pink-50"
-            >
-              Remove
-            </button>
-          </div>
-        )}
-        <input
-          value={form.mood_tags}
-          onChange={(event) => updateForm('mood_tags', event.target.value)}
-          placeholder="romantic, peaceful, fun"
-          className="input md:col-span-2"
-        />
-        <input
-          value={form.place_id}
-          onChange={(event) => updateForm('place_id', event.target.value)}
-          placeholder="Linked place ID"
-          className="input md:col-span-2"
-        />
-        <input
-          value={form.activity_id}
-          onChange={(event) => updateForm('activity_id', event.target.value)}
-          placeholder="Linked activity ID"
-          className="input md:col-span-2"
-        />
-        <textarea
-          value={form.notes}
-          onChange={(event) => updateForm('notes', event.target.value)}
-          placeholder="Key moment"
-          rows="2"
-          className="input resize-none md:col-span-5"
-        />
-        <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
-          {saving ? 'Saving...' : editingMemoryId ? 'Update' : 'Add'}
-        </button>
-        {editingMemoryId && (
-          <button type="button" onClick={resetForm} className="btn-secondary md:col-span-6">
-            Cancel Edit
-          </button>
-        )}
-      </form>
-
-      {loading && <p className="text-gray-500">Loading memories...</p>}
-
-      {!loading && filteredMemories.length === 0 && (
-        <div className="rounded-lg border border-dashed border-pink-200 bg-pink-50 p-6 text-center text-gray-600">
-          No memories found.
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {filteredMemories.map((memory) => (
-          <button
-            key={memory.id}
-            type="button"
-            onClick={() => setSelectedMemory(memory)}
-            className="group overflow-hidden rounded-lg border border-pink-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-          >
-            <MemoryImage memory={memory} compact />
-            <div className="space-y-3 p-4">
-              <div>
-                <time className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  {formatDate(memory.memory_date)}
-                </time>
-                <h2 className="mt-1 text-lg font-bold text-gray-800">{memory.title}</h2>
-              </div>
-              <TagList tags={memory.mood_tags} />
-              {memory.notes && (
-                <p className="line-clamp-2 text-sm leading-relaxed text-gray-600">{memory.notes}</p>
-              )}
-            </div>
-          </button>
-        ))}
       </div>
 
-      {selectedMemory && (
-        <MemoryModal
-          memory={selectedMemory}
-          onClose={() => setSelectedMemory(null)}
-          onEdit={editMemory}
-          onDelete={deleteMemory}
-        />
-      )}
-    </div>
-  )
-}
+      <textarea
+        value={form.notes}
+        onChange={(event) => updateForm('notes', event.target.value)}
+        placeholder="Add notes about this memory..."
+        rows="3"
+        className="input resize-none"
+      />
+
+      <input
+        value={form.mood_tags}
+        onChange={(event) => updateForm('mood_tags', event.target.value)}
+        placeholder="Mood tags (comma separated): romantic, fun, peaceful..."
+        className="input"
+      />
+
+      {/* Photo Upload */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Add Photo
+        </label>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <label className="flex-1 cursor-pointer">
+            <div className="border-2 border-dashed border-pink-300 rounded-lg p-4 hover:border-pink-500 smooth-transition text-center">
+              <svg className="w-8 h-8 mx-auto mb-2 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-sm text-gray-600">
+                {photoFile ? photoFile.name : 'Choose photo'}
+              </span>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoSelect}
+              className="hidden"
+            />
+          </label>
+          
+          {photoPreview && (
+            <div className="relative w-full sm:w-32 h-32">
+              <img 
+                src={photoPreview} 
+                alt="Preview" 
+                className="w-full h-full object-cover rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => selectPhoto(null)}
+                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full hover:bg-red-600 smooth-transition"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex-1 btn-gradient disabled:opacity-50"
+        >
+          {saving ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Saving...
+            </span>
+          ) : editingMemoryId ? (
+            'Update Memory'
+          ) : (
+            'Add Memory'
+          )}
+        </button>
+        {editingMemoryId && (
+          <button
+            type="button"
+            onClick={resetForm}
+            className="btn-outline"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
+
+    {/* Memories Grid */}
+    {loading ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <LoadingSkeleton type="memory" count={6} />
+      </div>
+    ) : filteredMemories.length === 0 ? (
+      <EmptyState
+        icon="💕"
+        title="No memories yet"
+        description="Create your first memory and start building your love story"
+        actionText="Add First Memory"
+        onAction={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      />
+    ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredMemories.map((memory) => (
+          <MemoryCard
+            key={memory.id}
+            memory={memory}
+            onEdit={editMemory}
+            onDelete={deleteMemory}
+            onSelect={setSelectedMemory}
+          />
+        ))}
+      </div>
+    )}
+  </div>
+)
 
 function MemoryImage({ memory, compact = false, onClick }) {
   if (memory.photo_url) {
@@ -517,6 +556,73 @@ function LinkedField({ label, value }) {
     <div className="rounded-lg border border-earthy-100 bg-earthy-50 p-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-earthy-600">{label}</p>
       <p className="mt-1 truncate text-sm font-medium text-gray-700">{value || 'Not linked'}</p>
+    </div>
+  )
+}
+
+function MemoryCard({ memory, onEdit, onDelete, onSelect }) {
+  return (
+    <div className="card-hover group">
+      {memory.photo_url && (
+        <div className="relative overflow-hidden rounded-lg mb-3">
+          <img 
+            src={memory.photo_url} 
+            alt={memory.title}
+            className="w-full h-48 object-cover group-hover:scale-110 smooth-transition"
+            onClick={() => onSelect(memory)}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 smooth-transition" />
+        </div>
+      )}
+      
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-gray-800 flex-1">{memory.title}</h3>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onEdit(memory)}
+              className="p-2 text-gray-400 hover:text-pink-600 smooth-transition"
+              aria-label="Edit"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => onDelete(memory)}
+              className="p-2 text-gray-400 hover:text-red-600 smooth-transition"
+              aria-label="Delete"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <p className="text-xs text-gray-500">
+          {formatDate(memory.memory_date)}
+        </p>
+        
+        {memory.mood_tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {memory.mood_tags.map(tag => (
+              <span 
+                key={tag}
+                className={`px-2 py-1 rounded-full text-xs font-medium ${getMoodClass(tag)}`}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        
+        {memory.notes && (
+          <p className="text-sm text-gray-600 line-clamp-2">
+            {memory.notes}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
