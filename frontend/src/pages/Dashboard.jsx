@@ -5,32 +5,55 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [recentMemories, setRecentMemories] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)  // ADD THIS
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     loadDashboard()
   }, [])
 
-  // ADD THIS: Separate function for loading
   const loadDashboard = async () => {
     try {
       setLoading(true)
       setError(null)
-      const [statsRes, memoriesRes] = await Promise.all([
+      
+      // Try to load both, but don't fail if one fails
+      const results = await Promise.allSettled([
         dashboard.getStats(),
         memories.list(),
       ])
-      setStats(statsRes.data)
-      setRecentMemories(memoriesRes.data.slice(0, 3))
+      
+      // Check stats result
+      if (results[0].status === 'fulfilled') {
+        setStats(results[0].value.data)
+      } else {
+        console.error('Stats failed:', results[0].reason)
+        // Set default stats if API fails
+        setStats({
+          days_together: 0,
+          places_visited: 0,
+          movies_watched: 0,
+          activities_completed: 0,
+          total_memories: 0,
+          movies_watchlist: 0,
+        })
+      }
+      
+      // Check memories result
+      if (results[1].status === 'fulfilled') {
+        setRecentMemories(results[1].value.data.slice(0, 3))
+      } else {
+        console.error('Memories failed:', results[1].reason)
+        setRecentMemories([])
+      }
+      
     } catch (err) {
-      console.error(err)
+      console.error('Dashboard error:', err)
       setError('Failed to load dashboard. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // IMPROVED: Better loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -42,7 +65,6 @@ export default function Dashboard() {
     )
   }
 
-  // ADD THIS: Error state with retry
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -67,17 +89,17 @@ export default function Dashboard() {
       <h1 className="heading-1">Our Journey Together</h1>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Days Together" value={stats.days_together} />
-        <StatCard label="Places Visited" value={stats.places_visited} />
-        <StatCard label="Movies Watched" value={stats.movies_watched} />
-        <StatCard label="Activities Done" value={stats.activities_completed} />
+        <StatCard label="Days Together" value={stats.days_together || 0} />
+        <StatCard label="Places Visited" value={stats.places_visited || 0} />
+        <StatCard label="Movies Watched" value={stats.movies_watched || 0} />
+        <StatCard label="Activities Done" value={stats.activities_completed || 0} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="rounded-lg border border-pink-100 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-800">Recent Memories</h2>
-            <span className="text-sm font-semibold text-pink-600">{stats.total_memories} total</span>
+            <span className="text-sm font-semibold text-pink-600">{stats.total_memories || 0} total</span>
           </div>
 
           {recentMemories.length === 0 ? (
@@ -113,8 +135,8 @@ export default function Dashboard() {
         <section className="rounded-lg border border-pink-100 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-bold text-gray-800">Movies</h2>
           <div className="grid grid-cols-2 gap-3">
-            <MiniStat label="Watched" value={stats.movies_watched} />
-            <MiniStat label="Watchlist" value={stats.movies_watchlist} />
+            <MiniStat label="Watched" value={stats.movies_watched || 0} />
+            <MiniStat label="Watchlist" value={stats.movies_watchlist || 0} />
           </div>
         </section>
       </div>
