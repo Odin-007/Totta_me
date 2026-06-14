@@ -30,7 +30,7 @@ export default function Header({ onMenuClick }) {
             <h2 className="text-lg lg:text-xl font-semibold text-pink-700 flex items-center gap-2">
               Welcome back! <span className="text-xl">🎈</span>
             </h2>
-            <p className="text-xs text-gray-500 hidden lg:block">Your love story continues...</p>
+            <p className="text-xs text-gray-500 hidden lg:block">Your story continues...</p>
           </div>
         </div>
         
