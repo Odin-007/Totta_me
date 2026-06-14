@@ -450,7 +450,7 @@ export default function Memories() {
     )}
   </div>
 )
-
+}
 function MemoryImage({ memory, compact = false, onClick }) {
   if (memory.photo_url) {
     return (
