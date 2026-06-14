@@ -10,48 +10,16 @@ import Activities from './pages/Activities'
 import Memories from './pages/Memories'
 import Movies from './pages/Movies'
 import Login from './pages/Login'
-import { auth } from './api'  // Add this import
 import './App.css'
 
 function App() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)  // Add loading state
-
-  // Check if user is logged in on mount
-  useEffect(() => {
-    const token = localStorage.getItem('access_token')
+  const [user, setUser] = useState(() => {
     const email = localStorage.getItem('user_email')
-    
-    if (token && email) {
-      // Verify token is still valid
-      auth.getMe()
-        .then(res => {
-          setUser({ email: res.data.email })
-        })
-        .catch(() => {
-          // Token invalid, clear storage
-          localStorage.clear()
-          setUser(null)
-        })
-        .finally(() => {
-          setLoading(false)
-        })
-    } else {
-      setLoading(false)
-    }
-  }, [])
+    return email ? { email } : null
+  })
 
-  // Show loading screen while checking auth
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-100 to-earthy-100">
-        <div className="text-center">
-          <div className="text-6xl mb-4">💕</div>
-          <p className="text-pink-600 font-semibold">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  // SIMPLIFIED: No auth verification, just check localStorage
+  // Remove the entire useEffect that calls auth.getMe()
 
   const appShell = (
     <div className="flex h-screen bg-cream">
