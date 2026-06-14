@@ -133,7 +133,7 @@ export default function Dashboard() {
         <section className="card-hover">
           <div className="flex items-center justify-between mb-4">
             <h2 className="heading-3 flex items-center gap-2">
-              <span>💕</span>
+              <span>📸</span>
               Recent Memories
             </h2>
             <span className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-bold">
