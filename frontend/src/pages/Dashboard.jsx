@@ -5,22 +5,62 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [recentMemories, setRecentMemories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)  // ADD THIS
 
   useEffect(() => {
-    Promise.all([
-      dashboard.getStats(),
-      memories.list(),
-    ])
-      .then(([statsRes, memoriesRes]) => {
-        setStats(statsRes.data)
-        setRecentMemories(memoriesRes.data.slice(0, 3))
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false))
+    loadDashboard()
   }, [])
 
-  if (loading) return <div>Loading...</div>
-  if (!stats) return <div>Error loading stats</div>
+  // ADD THIS: Separate function for loading
+  const loadDashboard = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const [statsRes, memoriesRes] = await Promise.all([
+        dashboard.getStats(),
+        memories.list(),
+      ])
+      setStats(statsRes.data)
+      setRecentMemories(memoriesRes.data.slice(0, 3))
+    } catch (err) {
+      console.error(err)
+      setError('Failed to load dashboard. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // IMPROVED: Better loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-4xl mb-4">💕</div>
+          <p className="text-pink-600 font-semibold">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ADD THIS: Error state with retry
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-4xl mb-4">😢</div>
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={loadDashboard}
+            className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!stats) return null
 
   return (
     <div className="space-y-6">
