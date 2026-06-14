@@ -2,9 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+mport ErrorBoundary from './components/ErrorBoundary'  // Add this
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>  {/* Wrap App with ErrorBoundary */}
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )
