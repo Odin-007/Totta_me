@@ -3,7 +3,7 @@ FastAPI Backend for Couples Memory App (NO LLM)
 Connect to Supabase PostgreSQL database
 """
 
-from fastapi import FastAPI, Depends, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, Column, String, Boolean, Integer, DateTime, Text, Float, TypeDecorator
@@ -178,6 +178,7 @@ class Place(Base):
     visited = Column(Boolean, default=False)
     visited_date = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
+    photo_url = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -223,7 +224,8 @@ class Memory(Base):
     memory_date = Column(DateTime, nullable=False)
     title = Column(String(255), nullable=False)
     notes = Column(Text, nullable=True)
-    photo_url = Column(String(500), nullable=True)
+    photo_url = Column(String(500), nullable=True)  # Legacy field - kept for backward compatibility
+    photos = Column(JSONList(), default=[])  # New field for multiple photos
     place_id = Column(GUID(), nullable=True)
     activity_id = Column(GUID(), nullable=True)
     mood_tags = Column(JSONList(), default=[])
@@ -288,6 +290,7 @@ class PlaceCreate(BaseModel):
     visited: bool = False
     visited_date: Optional[datetime] = None
     notes: Optional[str] = None
+    photo_url: Optional[str] = None
 
 class PlaceUpdate(BaseModel):
     name: Optional[str] = None
@@ -298,6 +301,7 @@ class PlaceUpdate(BaseModel):
     visited_date: Optional[datetime] = None
     notes: Optional[str] = None
     tags: Optional[list] = None
+    photo_url: Optional[str] = None
 
 class PlaceResponse(BaseModel):
     id: str
@@ -309,6 +313,7 @@ class PlaceResponse(BaseModel):
     visited: bool
     visited_date: Optional[datetime] = None
     notes: Optional[str] = None
+    photo_url: Optional[str] = None
 
 class MovieCreate(BaseModel):
     title: str
@@ -375,7 +380,8 @@ class MemoryCreate(BaseModel):
     memory_date: datetime
     title: str
     notes: Optional[str] = None
-    photo_url: Optional[str] = None
+    photo_url: Optional[str] = None  # Legacy field
+    photos: list = []  # New field for multiple photos
     place_id: Optional[str] = None
     activity_id: Optional[str] = None
     mood_tags: list = []
@@ -384,7 +390,8 @@ class MemoryUpdate(BaseModel):
     memory_date: Optional[datetime] = None
     title: Optional[str] = None
     notes: Optional[str] = None
-    photo_url: Optional[str] = None
+    photo_url: Optional[str] = None  # Legacy field
+    photos: Optional[list] = None  # New field for multiple photos
     place_id: Optional[str] = None
     activity_id: Optional[str] = None
     mood_tags: Optional[list] = None
@@ -394,7 +401,8 @@ class MemoryResponse(BaseModel):
     memory_date: datetime
     title: str
     notes: Optional[str] = None
-    photo_url: Optional[str] = None
+    photo_url: Optional[str] = None  # Legacy field
+    photos: list = []  # New field for multiple photos
     place_id: Optional[str] = None
     activity_id: Optional[str] = None
     mood_tags: list
@@ -590,6 +598,51 @@ async def get_me(current_user: User = Depends(get_current_user)):
         initials=current_user.initials
     )
 
+@app.get("/api/auth/profile")
+async def get_profile(current_user: User = Depends(get_current_user)):
+    """Get user profile information"""
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "name": current_user.name,
+        "initials": current_user.initials,
+        "profile_pic": current_user.profile_pic if hasattr(current_user, 'profile_pic') else None
+    }
+
+@app.patch("/api/auth/profile")
+async def update_profile(
+    name: str = Form(None),
+    initials: str = Form(None),
+    profile_pic: UploadFile = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user profile"""
+    if name:
+        current_user.name = name
+    if initials:
+        current_user.initials = initials.upper()[:3]
+    
+    # Handle profile picture upload if provided
+    if profile_pic:
+        try:
+            # For now, we'll skip the actual upload and just store a placeholder
+            # In production, you'd upload to Supabase Storage here
+            pass
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to upload profile picture: {str(e)}")
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "name": current_user.name,
+        "initials": current_user.initials,
+        "profile_pic": current_user.profile_pic if hasattr(current_user, 'profile_pic') else None
+    }
+
 @app.head("/")
 async def head_root():
     return {}
@@ -700,6 +753,7 @@ async def get_places(current_user: User = Depends(get_current_user), db: Session
             "visited": p.visited,
             "visited_date": p.visited_date,
             "notes": p.notes,
+            "photo_url": p.photo_url,
             "created_by": user.name if user else "Unknown",
             "created_by_initials": user.initials if user else "?",
         })
@@ -907,6 +961,7 @@ async def get_memories(current_user: User = Depends(get_current_user), db: Sessi
             "title": m.title,
             "notes": m.notes,
             "photo_url": m.photo_url,
+            "photos": m.photos or [],
             "place_id": str(m.place_id) if m.place_id else None,
             "activity_id": str(m.activity_id) if m.activity_id else None,
             "mood_tags": m.mood_tags or [],
@@ -931,6 +986,7 @@ async def create_memory(memory: MemoryCreate, current_user: User = Depends(get_c
         title=new_memory.title,
         notes=new_memory.notes,
         photo_url=new_memory.photo_url,
+        photos=new_memory.photos or [],
         place_id=str(new_memory.place_id) if new_memory.place_id else None,
         activity_id=str(new_memory.activity_id) if new_memory.activity_id else None,
         mood_tags=new_memory.mood_tags or []
@@ -955,6 +1011,7 @@ async def update_memory(memory_id: str, memory_update: MemoryUpdate, current_use
         title=memory.title,
         notes=memory.notes,
         photo_url=memory.photo_url,
+        photos=memory.photos or [],
         place_id=str(memory.place_id) if memory.place_id else None,
         activity_id=str(memory.activity_id) if memory.activity_id else None,
         mood_tags=memory.mood_tags or []
@@ -969,6 +1026,73 @@ async def delete_memory(memory_id: str, current_user: User = Depends(get_current
     db.delete(memory)
     db.commit()
     return {"message": "Memory deleted"}
+
+# ============================================================================
+# ROUTES - UPLOADS
+# ============================================================================
+
+@app.post("/api/uploads/place-photo")
+async def upload_place_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload place photo to Supabase Storage"""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase storage is not configured"
+        )
+
+    if file.content_type not in SUPPORTED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPEG, PNG, and WebP images are allowed"
+        )
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image must be smaller than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB"
+        )
+
+    extension = SUPPORTED_IMAGE_TYPES[file.content_type]
+    filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex}.{extension}"
+    storage_path = f"places/{current_user.id}/{filename}"
+    upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{storage_path}"
+
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": file.content_type,
+        "x-upsert": "false",
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(upload_url, content=content, headers=headers)
+
+    if response.status_code >= 400:
+        try:
+            supabase_error = response.json()
+        except json.JSONDecodeError:
+            supabase_error = response.text
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Failed to upload image to Supabase Storage",
+                "supabase_status": response.status_code,
+                "supabase_error": supabase_error,
+            }
+        )
+
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/{storage_path}"
+    return {
+        "photo_url": public_url,
+        "storage_path": storage_path,
+        "content_type": file.content_type,
+        "size": len(content),
+    }
 
 # ============================================================================
 # ROUTES - COLLABORATIVE NOTES
@@ -1123,9 +1247,9 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
     """Get dashboard statistics"""
     from datetime import datetime
     
-    # Days together (first memory date)
-    first_memory = db.query(Memory).order_by(Memory.memory_date).first()
-    days_together = (datetime.utcnow() - first_memory.memory_date).days if first_memory else 0
+    # Days together - starting from February 15, 2026
+    relationship_start = datetime(2026, 2, 15)
+    days_together = (datetime.utcnow() - relationship_start).days
     
     # Places
     places_visited = db.query(Place).filter(Place.visited == True).count()
@@ -1468,7 +1592,7 @@ async def export_data(
         ).dict() for a in user_activities],
         "memories": [MemoryResponse(
             id=str(m.id), memory_date=m.memory_date, title=m.title,
-            notes=m.notes, photo_url=m.photo_url,
+            notes=m.notes, photo_url=m.photo_url, photos=m.photos or [],
             place_id=str(m.place_id) if m.place_id else None,
             activity_id=str(m.activity_id) if m.activity_id else None,
             mood_tags=m.mood_tags or []

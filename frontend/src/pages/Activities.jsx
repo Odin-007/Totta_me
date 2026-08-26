@@ -3,6 +3,8 @@ import { activities } from '../api'
 import CollaborativeNotes from '../components/CollaborativeNotes'
 import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
+import ConfirmDialog from '../components/ConfirmDialog'
+import SearchBar from '../components/SearchBar'
 
 const CATEGORIES = {
   date: {
@@ -61,6 +63,8 @@ export default function Activities() {
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, activityId: null })
 
   useEffect(() => {
     loadActivities()
@@ -78,13 +82,26 @@ export default function Activities() {
   }
 
   const filteredActivities = useMemo(() => {
-    return activityList.filter((activity) => {
+    let result = activityList.filter((activity) => {
       if (filter === 'all') return true
       if (filter === 'upcoming') return !activity.completed_date && new Date(activity.planned_date) >= new Date()
       if (filter === 'completed') return Boolean(activity.completed_date)
       return activity.category === filter
     })
-  }, [activityList, filter])
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter((activity) =>
+        activity.title?.toLowerCase().includes(query) ||
+        activity.notes?.toLowerCase().includes(query) ||
+        activity.category?.toLowerCase().includes(query) ||
+        activity.mood_tags?.some(tag => tag.toLowerCase().includes(query))
+      )
+    }
+    
+    return result
+  }, [activityList, filter, searchQuery])
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -159,16 +176,16 @@ export default function Activities() {
     }
   }
 
-  const deleteActivity = async (activity) => {
-    if (!window.confirm(`Delete "${activity.title}"?`)) return
-
+  const deleteActivity = async (activityId) => {
     try {
-      await activities.delete(activity.id)
-      setActivityList((current) => current.filter((item) => item.id !== activity.id))
+      await activities.delete(activityId)
+      setActivityList((current) => current.filter((item) => item.id !== activityId))
       setSelectedActivity(null)
-      if (editingActivityId === activity.id) resetForm()
+      if (editingActivityId === activityId) resetForm()
+      toast.success('Activity deleted')
     } catch (err) {
       console.error('Error deleting activity:', err)
+      toast.error('Failed to delete activity')
     }
   }
 
@@ -196,6 +213,12 @@ export default function Activities() {
           ))}
         </div>
       </div>
+
+      {/* Search Bar */}
+      <SearchBar 
+        placeholder="Search activities by title, notes, category, or tags..."
+        onSearch={setSearchQuery}
+      />
 
       {loading && <p className="text-gray-500">Loading activities...</p>}
 
@@ -273,7 +296,7 @@ export default function Activities() {
                         <button type="button" onClick={() => toggleComplete(activity)} className="btn-primary">
                           {activity.completed_date ? 'Mark Upcoming' : 'Mark Done'}
                         </button>
-                        <button type="button" onClick={() => deleteActivity(activity)} className="btn-danger">
+                        <button type="button" onClick={() => setConfirmDialog({ isOpen: true, activityId: activity.id, title: activity.title })} className="btn-danger">
                           Delete
                         </button>
                       </div>
@@ -402,6 +425,18 @@ export default function Activities() {
           </div>
         </form>
       </FormSheet>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, activityId: null })}
+        onConfirm={() => deleteActivity(confirmDialog.activityId)}
+        title="Delete Activity?"
+        message={`Are you sure you want to delete "${confirmDialog.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   )
 }

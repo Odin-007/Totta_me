@@ -46,6 +46,14 @@ export const auth = {
   
   getMe: () =>
     apiClient.get('/api/auth/me'),
+  
+  getProfile: () =>
+    apiClient.get('/api/auth/profile'),
+  
+  updateProfile: (formData) =>
+    apiClient.patch('/api/auth/profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
 }
 
 // Todo APIs
@@ -112,6 +120,10 @@ export const uploads = {
 
     return { data }
   },
+  placePhoto: (formData) =>
+    apiClient.post('/api/uploads/place-photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
 }
 
 // Collaborative Notes APIs

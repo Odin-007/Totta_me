@@ -54,7 +54,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3 heart-beat">💕</div>
           <h2 className="text-2xl font-bold gradient-text">Welcome Back</h2>
-          <p className="text-sm text-gray-500 mt-1">Sign in to your love story</p>
+          <p className="text-sm text-gray-500 mt-1">Sign in to our story</p>
         </div>
 
         {error && (

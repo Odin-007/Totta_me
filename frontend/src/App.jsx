@@ -13,6 +13,7 @@ import Memories from './pages/Memories'
 import Movies from './pages/Movies'
 import MonthlyReview from './pages/MonthlyReview'
 import AiSuggestions from './pages/AiSuggestions'
+import Profile from './pages/Profile'
 import Login from './pages/Login'
 
 // Separate component for the app shell - this MUST be inside Router
@@ -43,6 +44,7 @@ function AppShell({ sidebarOpen, setSidebarOpen }) {
             <Route path="/memories" element={<Memories />} />
             <Route path="/monthly-review" element={<MonthlyReview />} />
             <Route path="/ai-suggestions" element={<AiSuggestions />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </main>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { dashboard, feed as feedApi, dataExport } from '../api'
+import { dashboard, feed as feedApi } from '../api'
 import toast from 'react-hot-toast'
 import LoadingSkeleton from '../components/LoadingSkeleton'
 
@@ -69,22 +69,6 @@ export default function Dashboard() {
     }
   }
 
-  const handleExport = async () => {
-    try {
-      const res = await dataExport.downloadJSON()
-      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `totta_me_backup_${new Date().toISOString().slice(0,10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success('Backup downloaded!')
-    } catch { 
-      toast.error('Export failed') 
-    }
-  }
-
   if (loading) {
     return (
       <div className="space-y-6 slide-in-up">
@@ -118,7 +102,10 @@ export default function Dashboard() {
         <p className="text-sm font-semibold uppercase tracking-wide text-pink-600 mb-1">
           Your Love Story
         </p>
-        <h1 className="heading-1 gradient-text">Our Journey Together</h1>
+        <h1 className="heading-1 gradient-text flex items-center gap-3">
+          <span>Our Journey Together</span>
+          <span className="text-4xl">💑</span>
+        </h1>
       </div>
 
       {/* Collapsible Stats */}
@@ -152,7 +139,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-2">
         <button
           onClick={() => navigate('/monthly-review')}
           className="card-hover text-left group"
@@ -174,18 +161,6 @@ export default function Dashboard() {
             <div>
               <h3 className="font-bold text-gray-800 group-hover:text-pink-600 smooth-transition">AI Suggestions</h3>
               <p className="text-xs text-gray-500">Get personalized date ideas</p>
-            </div>
-          </div>
-        </button>
-        <button
-          onClick={handleExport}
-          className="card-hover text-left group"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">💾</span>
-            <div>
-              <h3 className="font-bold text-gray-800 group-hover:text-pink-600 smooth-transition">Export Data</h3>
-              <p className="text-xs text-gray-500">Download JSON backup</p>
             </div>
           </div>
         </button>

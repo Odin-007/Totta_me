@@ -1,13 +1,29 @@
-import { useEffect, useState } from 'react'
-import { places } from '../api'
+import { useEffect, useState, useMemo } from 'react'
+import { places, uploads } from '../api'
 import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
+import ConfirmDialog from '../components/ConfirmDialog'
+import SearchBar from '../components/SearchBar'
+
+const QUICK_TAGS = [
+  'Brunch Spot',
+  'Date Night',
+  'Fancy Dinner',
+  'Cozy Cafe',
+  'Adventure',
+  'Romantic Getaway',
+  'Weekend Trip',
+  'Hidden Gem',
+  'Must Visit',
+  'Local Favorite'
+]
 
 const DEFAULT_PLACE = {
   name: '',
   address: '',
   tags: '',
   notes: '',
+  photo_url: '',
 }
 
 export default function Places() {
@@ -19,6 +35,10 @@ export default function Places() {
   const [filter, setFilter] = useState('all')
   const [touched, setTouched] = useState({})
   const [formOpen, setFormOpen] = useState(false)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, placeId: null })
 
   useEffect(() => {
     loadPlaces()
@@ -45,6 +65,35 @@ export default function Places() {
     setEditingId(null)
     setTouched({})
     setFormOpen(false)
+    setPhotoFile(null)
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoPreview('')
+  }
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file')
+        return
+      }
+      setPhotoFile(file)
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+      setPhotoPreview(URL.createObjectURL(file))
+    }
+  }
+
+  const toggleQuickTag = (tag) => {
+    const currentTags = form.tags.split(',').map(t => t.trim()).filter(Boolean)
+    const tagIndex = currentTags.indexOf(tag)
+    
+    if (tagIndex > -1) {
+      currentTags.splice(tagIndex, 1)
+    } else {
+      currentTags.push(tag)
+    }
+    
+    updateForm('tags', currentTags.join(', '))
   }
 
   const editPlace = (place) => {
@@ -54,26 +103,50 @@ export default function Places() {
       address: place.address || '',
       tags: place.tags?.join(', ') || '',
       notes: place.notes || '',
+      photo_url: place.photo_url || '',
     })
     setTouched({})
+    setPhotoFile(null)
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoPreview(place.photo_url || '')
     setFormOpen(true)
   }
 
   const savePlace = async (event) => {
     event.preventDefault()
-    setTouched({ name: true })
-    if (!form.name.trim()) return
-
-    const payload = {
-      name: form.name.trim(),
-      address: form.address.trim() || null,
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-      notes: form.notes.trim() || null,
-      visited: false,
+    setTouched({ name: true, tags: true })
+    
+    // Validate required fields
+    if (!form.name.trim()) {
+      toast.error('Place name is required')
+      return
+    }
+    if (!form.tags.trim()) {
+      toast.error('Please select at least one tag')
+      return
     }
 
     try {
       setSaving(true)
+      
+      // Upload photo if provided
+      let photoUrl = form.photo_url
+      if (photoFile) {
+        const formData = new FormData()
+        formData.append('file', photoFile)
+        const uploadRes = await uploads.placePhoto(formData)
+        photoUrl = uploadRes.data.photo_url
+      }
+
+      const payload = {
+        name: form.name.trim(),
+        address: form.address.trim() || null,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        notes: form.notes.trim() || null,
+        photo_url: photoUrl || null,
+        visited: false,
+      }
+
       const res = editingId
         ? await places.update(editingId, payload)
         : await places.create(payload)
@@ -108,12 +181,11 @@ export default function Places() {
     }
   }
 
-  const deletePlace = async (place) => {
-    if (!window.confirm(`Delete "${place.name}"?`)) return
+  const deletePlace = async (placeId) => {
     try {
-      await places.delete(place.id)
-      setPlacesList(current => current.filter(p => p.id !== place.id))
-      if (editingId === place.id) resetForm()
+      await places.delete(placeId)
+      setPlacesList(current => current.filter(p => p.id !== placeId))
+      if (editingId === placeId) resetForm()
       toast.success('Place deleted')
     } catch (err) {
       console.error('Error deleting place:', err)
@@ -121,11 +193,26 @@ export default function Places() {
     }
   }
 
-  const filtered = placesList.filter(place => {
-    if (filter === 'visited') return place.visited
-    if (filter === 'wishlist') return !place.visited
-    return true
-  })
+  const filtered = useMemo(() => {
+    let result = placesList
+    
+    // Filter by visited status
+    if (filter === 'visited') result = result.filter(place => place.visited)
+    else if (filter === 'wishlist') result = result.filter(place => !place.visited)
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(place =>
+        place.name?.toLowerCase().includes(query) ||
+        place.address?.toLowerCase().includes(query) ||
+        place.notes?.toLowerCase().includes(query) ||
+        place.tags?.some(tag => tag.toLowerCase().includes(query))
+      )
+    }
+    
+    return result
+  }, [placesList, filter, searchQuery])
 
   return (
     <div className="space-y-6 slide-in-up">
@@ -133,6 +220,12 @@ export default function Places() {
         <p className="text-sm font-semibold uppercase tracking-wide text-earthy-600">Explore together</p>
         <h1 className="heading-1 gradient-text">Places</h1>
       </div>
+
+      {/* Search Bar */}
+      <SearchBar 
+        placeholder="Search places by name, address, tags, or notes..."
+        onSearch={setSearchQuery}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
@@ -165,8 +258,17 @@ export default function Places() {
         {filtered.map(place => (
           <div
             key={place.id}
-            className={`card-hover border-l-4 ${place.visited ? 'border-green-500' : 'border-pink-400'}`}
+            className={`card-hover border-l-4 ${place.visited ? 'border-green-500' : 'border-pink-400'} overflow-hidden`}
           >
+            {/* Place Photo */}
+            {place.photo_url && (
+              <img 
+                src={place.photo_url} 
+                alt={place.name}
+                className="w-full h-48 object-cover -mt-4 -mx-4 mb-4 rounded-t-lg"
+              />
+            )}
+            
             <div className="flex items-start justify-between gap-2 mb-2">
               <div>
                 <span className={`text-xs font-bold uppercase tracking-wide ${place.visited ? 'text-green-600' : 'text-pink-600'}`}>
@@ -200,7 +302,7 @@ export default function Places() {
                 {place.visited ? 'Move to Wishlist' : 'Mark Visited'}
               </button>
               <button type="button" onClick={() => editPlace(place)} className="btn-secondary text-xs">Edit</button>
-              <button type="button" onClick={() => deletePlace(place)} className="btn-danger text-xs">Delete</button>
+              <button type="button" onClick={() => setConfirmDialog({ isOpen: true, placeId: place.id, name: place.name })} className="btn-danger text-xs">Delete</button>
             </div>
           </div>
         ))}
@@ -224,59 +326,127 @@ export default function Places() {
         title={editingId ? "Edit Place" : "Add New Place"}
       >
         <form onSubmit={savePlace} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Place Name <span className="text-pink-500">*</span>
+          {/* Place Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Place Name <span className="text-pink-500">*</span>
+            </label>
+            <input
+              value={form.name}
+              onChange={e => updateForm('name', e.target.value)}
+              onBlur={() => setTouched(t => ({ ...t, name: true }))}
+              placeholder="Where do you want to go?"
+              className={`input w-full ${touched.name && !form.name.trim() ? 'border-red-400' : ''}`}
+              autoFocus
+            />
+            {touched.name && !form.name.trim() && (
+              <p className="text-red-500 text-xs mt-1">Name is required</p>
+            )}
+          </div>
+
+          {/* Photo Upload */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Place Photo <span className="text-gray-400">(screenshot or photo)</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="flex-1 cursor-pointer">
+                <div className="border-2 border-dashed border-pink-300 rounded-lg p-4 hover:border-pink-500 smooth-transition text-center">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-sm text-gray-600">
+                    {photoFile ? photoFile.name : 'Upload screenshot or photo'}
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoSelect}
+                  className="hidden"
+                />
               </label>
-              <input
-                value={form.name}
-                onChange={e => updateForm('name', e.target.value)}
-                onBlur={() => setTouched(t => ({ ...t, name: true }))}
-                placeholder="Where do you want to go?"
-                className={`input w-full ${touched.name && !form.name.trim() ? 'border-red-400' : ''}`}
-                autoFocus
-              />
-              {touched.name && !form.name.trim() && (
-                <p className="text-red-500 text-xs mt-1">Name is required</p>
+              
+              {photoPreview && (
+                <div className="relative w-full sm:w-32 h-32">
+                  <img 
+                    src={photoPreview} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoFile(null)
+                      if (photoPreview) URL.revokeObjectURL(photoPreview)
+                      setPhotoPreview('')
+                      updateForm('photo_url', '')
+                    }}
+                    className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full hover:bg-red-600 smooth-transition flex items-center justify-center"
+                  >
+                    ×
+                  </button>
+                </div>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Address <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                value={form.address}
-                onChange={e => updateForm('address', e.target.value)}
-                placeholder="Full address or Google Maps link"
-                className="input w-full"
-              />
-            </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tags <span className="text-gray-400">(optional, comma separated)</span>
-              </label>
-              <input
-                value={form.tags}
-                onChange={e => updateForm('tags', e.target.value)}
-                placeholder="restaurant, cafe, nature..."
-                className="input w-full"
-              />
+
+          {/* Quick Tag Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Category <span className="text-pink-500">* (select at least one)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {QUICK_TAGS.map(tag => {
+                const isSelected = form.tags.split(',').map(t => t.trim()).includes(tag)
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleQuickTag(tag)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium smooth-transition ${
+                      isSelected
+                        ? 'bg-pink-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-700 hover:bg-pink-100'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Notes <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                value={form.notes}
-                onChange={e => updateForm('notes', e.target.value)}
-                placeholder="Any notes about this place"
-                className="input w-full"
-              />
-            </div>
+            {touched.tags && !form.tags.trim() && (
+              <p className="text-red-500 text-xs mt-2">Please select at least one category</p>
+            )}
           </div>
+
+          {/* Address */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Address <span className="text-gray-400">(optional)</span>
+            </label>
+            <input
+              value={form.address}
+              onChange={e => updateForm('address', e.target.value)}
+              placeholder="Full address or Google Maps link"
+              className="input w-full"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Notes <span className="text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              value={form.notes}
+              onChange={e => updateForm('notes', e.target.value)}
+              placeholder="Any notes about this place..."
+              rows="3"
+              className="input w-full resize-none"
+            />
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -295,6 +465,18 @@ export default function Places() {
           </div>
         </form>
       </FormSheet>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, placeId: null })}
+        onConfirm={() => deletePlace(confirmDialog.placeId)}
+        title="Delete Place?"
+        message={`Are you sure you want to delete "${confirmDialog.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   )
 }

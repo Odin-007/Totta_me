@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { todos } from '../api'
 import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Todos() {
   const [todoList, setTodoList] = useState([])
@@ -9,6 +10,7 @@ export default function Todos() {
   const [loading, setLoading] = useState(false)
   const [listLoading, setListLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, todoId: null })
 
   useEffect(() => {
     loadTodos()
@@ -124,7 +126,7 @@ export default function Todos() {
               </span>
             )}
             <button
-              onClick={() => deleteTodo(todo.id)}
+              onClick={() => setConfirmDialog({ isOpen: true, todoId: todo.id, title: todo.title })}
               className="p-2 text-gray-400 hover:text-red-600 smooth-transition"
               aria-label="Delete"
             >
@@ -187,6 +189,18 @@ export default function Todos() {
           </div>
         </form>
       </FormSheet>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, todoId: null })}
+        onConfirm={() => deleteTodo(confirmDialog.todoId)}
+        title="Delete Todo?"
+        message={`Are you sure you want to delete "${confirmDialog.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   )
 }

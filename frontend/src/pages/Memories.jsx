@@ -5,6 +5,9 @@ import LoadingSkeleton from '../components/LoadingSkeleton'
 import toast from 'react-hot-toast'
 import EmptyState from '../components/EmptyState'
 import FormSheet from '../components/FormSheet'
+import ImageGallery from '../components/ImageGallery'
+import ConfirmDialog from '../components/ConfirmDialog'
+import SearchBar from '../components/SearchBar'
 
 const MOOD_STYLES = {
   romantic: 'bg-pink-100 text-pink-700',
@@ -122,13 +125,18 @@ export default function Memories() {
   const [selectedMemory, setSelectedMemory] = useState(null)
   const [form, setForm] = useState(DEFAULT_MEMORY)
   const [editingMemoryId, setEditingMemoryId] = useState(null)
-  const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState('')
+  const [photoFiles, setPhotoFiles] = useState([])
+  const [photoPreviews, setPhotoPreviews] = useState([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryImages, setGalleryImages] = useState([])
+  const [galleryIndex, setGalleryIndex] = useState(0)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, memoryId: null })
 
   useEffect(() => {
     loadMemories()
@@ -136,11 +144,9 @@ export default function Memories() {
 
   useEffect(() => {
     return () => {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview)
-      }
+      photoPreviews.forEach(preview => URL.revokeObjectURL(preview))
     }
-  }, [photoPreview])
+  }, [photoPreviews])
 
   const loadMemories = async () => {
     try {
@@ -158,28 +164,51 @@ export default function Memories() {
   }, [memoryList])
 
   const filteredMemories = useMemo(() => {
-    if (filter === 'all') return memoryList
-    return memoryList.filter((memory) => memory.mood_tags?.includes(filter))
-  }, [memoryList, filter])
+    let filtered = memoryList
+    
+    // Filter by mood tag
+    if (filter !== 'all') {
+      filtered = filtered.filter((memory) => memory.mood_tags?.includes(filter))
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((memory) => 
+        memory.title?.toLowerCase().includes(query) ||
+        memory.notes?.toLowerCase().includes(query) ||
+        memory.mood_tags?.some(tag => tag.toLowerCase().includes(query))
+      )
+    }
+    
+    return filtered
+  }, [memoryList, filter, searchQuery])
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
-  const selectPhoto = (file) => {
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview)
-    }
-
+  const addPhotos = (files) => {
+    const newFiles = Array.from(files)
+    const newPreviews = newFiles.map(file => URL.createObjectURL(file))
+    
+    setPhotoFiles(prev => [...prev, ...newFiles])
+    setPhotoPreviews(prev => [...prev, ...newPreviews])
     setError('')
-    setPhotoFile(file || null)
-    setPhotoPreview(file ? URL.createObjectURL(file) : '')
+  }
+
+  const removePhoto = (index) => {
+    URL.revokeObjectURL(photoPreviews[index])
+    setPhotoFiles(prev => prev.filter((_, i) => i !== index))
+    setPhotoPreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   const resetForm = () => {
     setForm(DEFAULT_MEMORY)
     setEditingMemoryId(null)
-    selectPhoto(null)
+    photoPreviews.forEach(preview => URL.revokeObjectURL(preview))
+    setPhotoFiles([])
+    setPhotoPreviews([])
     setFormOpen(false)
   }
 
@@ -194,9 +223,11 @@ export default function Memories() {
       place_id: memory.place_id || '',
       activity_id: memory.activity_id || '',
     })
-    if (photoPreview) URL.revokeObjectURL(photoPreview)
-    setPhotoFile(null)
-    setPhotoPreview(memory.photo_url || '')
+    photoPreviews.forEach(preview => URL.revokeObjectURL(preview))
+    setPhotoFiles([])
+    // Set existing photos as previews (URLs from backend)
+    const existingPhotos = memory.photos && memory.photos.length > 0 ? memory.photos : (memory.photo_url ? [memory.photo_url] : [])
+    setPhotoPreviews(existingPhotos)
     setFormOpen(true)
   }
 
@@ -208,17 +239,24 @@ export default function Memories() {
       setSaving(true)
       setError('')
 
-      let photoUrl = null
-      if (photoFile) {
-        const compressedFile = await compressImage(photoFile)
+      // Upload new photos
+      const uploadedPhotoUrls = []
+      for (const file of photoFiles) {
+        const compressedFile = await compressImage(file)
         const uploadResult = await uploads.memoryPhoto(compressedFile)
-        photoUrl = uploadResult.data.photo_url
+        uploadedPhotoUrls.push(uploadResult.data.photo_url)
       }
+
+      // Combine existing photos (from edit) with newly uploaded ones
+      const existingPhotos = photoPreviews.filter(url => typeof url === 'string' && url.startsWith('http'))
+      const allPhotos = [...existingPhotos, ...uploadedPhotoUrls]
 
       const payload = {
         title: form.title.trim(),
         memory_date: new Date(form.memory_date).toISOString(),
-        ...(photoUrl ? { photo_url: photoUrl } : {}),
+        photos: allPhotos,
+        // Keep photo_url for backward compatibility (use first photo)
+        ...(allPhotos.length > 0 ? { photo_url: allPhotos[0] } : {}),
         ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
         ...(form.place_id.trim() ? { place_id: form.place_id.trim() } : {}),
         ...(form.activity_id.trim() ? { activity_id: form.activity_id.trim() } : {}),
@@ -248,30 +286,38 @@ export default function Memories() {
     }
   }
 
-  const deleteMemory = async (memory) => {
-    if (!window.confirm(`Delete "${memory.title}"?`)) return
-
+  const deleteMemory = async (memoryId) => {
     try {
-      await memories.delete(memory.id)
-      setMemoryList((current) => current.filter((item) => item.id !== memory.id))
+      await memories.delete(memoryId)
+      setMemoryList((current) => current.filter((item) => item.id !== memoryId))
       setSelectedMemory(null)
-      if (editingMemoryId === memory.id) resetForm()
+      if (editingMemoryId === memoryId) resetForm()
+      toast.success('Memory deleted')
     } catch (err) {
       console.error('Error deleting memory:', err)
-      setError(formatApiError(err))
+      toast.error('Failed to delete memory')
     }
+  }
+
+  const openGallery = (imageUrls, startIndex = 0) => {
+    setGalleryImages(imageUrls)
+    setGalleryIndex(startIndex)
+    setGalleryOpen(true)
   }
 
   const handlePhotoSelect = (e) => {
-  const file = e.target.files?.[0]
-  if (file) {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB')
-      return
+    const files = Array.from(e.target.files || [])
+    const validFiles = files.filter(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 5MB)`)
+        return false
+      }
+      return true
+    })
+    if (validFiles.length > 0) {
+      addPhotos(validFiles)
     }
-    selectPhoto(file)
   }
-}
 
   return (
       <div className="space-y-6 slide-in-up">
@@ -283,6 +329,14 @@ export default function Memories() {
         </p>
         <h1 className="heading-1 gradient-text">Best Memories</h1>
       </div>
+      
+      {/* Search Bar */}
+      <SearchBar 
+        placeholder="Search memories by title, notes, or tags..."
+        onSearch={setSearchQuery}
+        className="mb-4"
+      />
+      
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -332,8 +386,9 @@ export default function Memories() {
             key={memory.id}
             memory={memory}
             onEdit={editMemory}
-            onDelete={deleteMemory}
+            onDelete={() => setConfirmDialog({ isOpen: true, memoryId: memory.id, title: memory.title })}
             onSelect={setSelectedMemory}
+            onOpenGallery={openGallery}
           />
         ))}
       </div>
@@ -345,7 +400,7 @@ export default function Memories() {
         memory={selectedMemory}
         onClose={() => setSelectedMemory(null)}
         onEdit={editMemory}
-        onDelete={deleteMemory}
+        onDelete={() => setConfirmDialog({ isOpen: true, memoryId: selectedMemory.id, title: selectedMemory.title })}
       />
     )}
 
@@ -429,43 +484,47 @@ export default function Memories() {
         {/* Photo Upload */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Add Photo
+            Add Photos <span className="text-gray-400 text-xs font-normal">(optional, multiple allowed)</span>
           </label>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <label className="flex-1 cursor-pointer">
-              <div className="border-2 border-dashed border-pink-300 rounded-lg p-4 hover:border-pink-500 smooth-transition text-center">
-                <svg className="w-8 h-8 mx-auto mb-2 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="text-sm text-gray-600">
-                  {photoFile ? photoFile.name : 'Choose photo'}
-                </span>
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoSelect}
-                className="hidden"
-              />
-            </label>
-            
-            {photoPreview && (
-              <div className="relative w-full sm:w-32 h-32">
-                <img 
-                  src={photoPreview} 
-                  alt="Preview" 
-                  className="w-full h-full object-cover rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={() => selectPhoto(null)}
-                  className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full hover:bg-red-600 smooth-transition flex items-center justify-center"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-          </div>
+          <label className="block cursor-pointer mb-3">
+            <div className="border-2 border-dashed border-pink-300 rounded-lg p-4 hover:border-pink-500 smooth-transition text-center">
+              <svg className="w-8 h-8 mx-auto mb-2 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-sm text-gray-600">
+                {photoPreviews.length > 0 ? `${photoPreviews.length} photo(s) selected` : 'Choose photos'}
+              </span>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoSelect}
+              className="hidden"
+            />
+          </label>
+          
+          {/* Photo Previews Grid */}
+          {photoPreviews.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {photoPreviews.map((preview, index) => (
+                <div key={index} className="relative aspect-square">
+                  <img 
+                    src={preview} 
+                    alt={`Preview ${index + 1}`} 
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(index)}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full hover:bg-red-600 smooth-transition flex items-center justify-center text-sm"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 pt-4">
@@ -486,6 +545,26 @@ export default function Memories() {
         </div>
       </form>
     </FormSheet>
+
+    {/* Image Gallery */}
+    <ImageGallery
+      images={galleryImages}
+      isOpen={galleryOpen}
+      onClose={() => setGalleryOpen(false)}
+      initialIndex={galleryIndex}
+    />
+
+    {/* Confirm Dialog */}
+    <ConfirmDialog
+      isOpen={confirmDialog.isOpen}
+      onClose={() => setConfirmDialog({ isOpen: false, memoryId: null })}
+      onConfirm={() => deleteMemory(confirmDialog.memoryId)}
+      title="Delete Memory?"
+      message={`Are you sure you want to delete "${confirmDialog.title}"? This action cannot be undone.`}
+      confirmText="Delete"
+      cancelText="Cancel"
+      type="danger"
+    />
   </div>
 )
 }
@@ -598,18 +677,36 @@ function LinkedField({ label, value }) {
   )
 }
 
-function MemoryCard({ memory, onEdit, onDelete, onSelect }) {
+function MemoryCard({ memory, onEdit, onDelete, onSelect, onOpenGallery }) {
+  // Get all photos (new photos array or legacy photo_url)
+  const photos = memory.photos && memory.photos.length > 0 ? memory.photos : (memory.photo_url ? [memory.photo_url] : [])
+  
   return (
     <div className="card-hover group">
-      {memory.photo_url && (
+      {photos.length > 0 && (
         <div className="relative overflow-hidden rounded-lg mb-3">
-          <img 
-            src={memory.photo_url} 
-            alt={memory.title}
-            className="w-full h-48 object-cover group-hover:scale-110 smooth-transition"
-            onClick={() => onSelect(memory)}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 smooth-transition" />
+          {/* Main Photo */}
+          <div className="relative cursor-pointer" onClick={() => onOpenGallery(photos, 0)}>
+            <img 
+              src={photos[0]} 
+              alt={memory.title}
+              className="w-full h-48 object-cover group-hover:scale-110 smooth-transition"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 smooth-transition flex items-center justify-center">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
+            </div>
+            {/* Photo count badge */}
+            {photos.length > 1 && (
+              <div className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {photos.length}
+              </div>
+            )}
+          </div>
         </div>
       )}
       
@@ -627,7 +724,7 @@ function MemoryCard({ memory, onEdit, onDelete, onSelect }) {
               </svg>
             </button>
             <button
-              onClick={() => onDelete(memory)}
+              onClick={onDelete}
               className="p-2 text-gray-400 hover:text-red-600 smooth-transition"
               aria-label="Delete"
             >

@@ -1,14 +1,28 @@
-import { useContext, useState, useEffect } from 'react'
+import { useContext, useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AuthContext from '../context/AuthContext'
 
 export default function Header({ onMenuClick }) {
   const { user, setUser } = useContext(AuthContext)
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const profileMenuRef = useRef(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
     localStorage.setItem('theme', dark ? 'dark' : 'light')
   }, [dark])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('access_token')
@@ -47,26 +61,51 @@ export default function Header({ onMenuClick }) {
             )}
           </button>
 
-          <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-pink-50 rounded-lg">
-            <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center text-white font-bold text-sm">
+          {/* Profile Dropdown */}
+          <div className="relative" ref={profileMenuRef}>
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center text-white font-bold text-sm hover:scale-110 smooth-transition shadow-md"
+              aria-label="Profile menu"
+            >
               {user?.email?.charAt(0).toUpperCase()}
-            </div>
-            <span className="text-sm text-gray-700 font-medium max-w-[150px] truncate">
-              {user?.email}
-            </span>
+            </button>
+            
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-pink-lg border border-pink-100 py-2 slide-in-up z-50">
+                <div className="px-4 py-3 border-b border-pink-100">
+                  <p className="text-sm font-semibold text-gray-700">{user?.email}</p>
+                  <p className="text-xs text-gray-500 mt-1">Manage your account</p>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false)
+                    navigate('/profile')
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-pink-50 smooth-transition flex items-center gap-3"
+                >
+                  <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Profile Settings
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false)
+                    handleLogout()
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 smooth-transition flex items-center gap-3"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
-          
-          <button
-            onClick={handleLogout}
-            className="px-4 lg:px-5 py-2 bg-gradient-primary text-white text-sm font-semibold rounded-lg hover:shadow-pink-lg smooth-transition touch-target"
-          >
-            <span className="hidden sm:inline">Logout</span>
-            <span className="sm:hidden">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </span>
-          </button>
         </div>
       </div>
     </header>

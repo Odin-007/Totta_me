@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { movies } from '../api'
 import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
+import ConfirmDialog from '../components/ConfirmDialog'
+import SearchBar from '../components/SearchBar'
 
 const DEFAULT_MOVIE = {
   title: '',
@@ -17,6 +19,8 @@ export default function Movies() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, movieId: null })
 
   useEffect(() => {
     loadMovies()
@@ -34,10 +38,25 @@ export default function Movies() {
   }
 
   const filteredMovies = useMemo(() => {
-    if (filter === 'watched') return movieList.filter((movie) => movie.watched)
-    if (filter === 'watchlist') return movieList.filter((movie) => !movie.watched)
-    return movieList
-  }, [movieList, filter])
+    let result = movieList
+    
+    // Filter by watched status
+    if (filter === 'watched') result = result.filter((movie) => movie.watched)
+    else if (filter === 'watchlist') result = result.filter((movie) => !movie.watched)
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter((movie) =>
+        movie.title?.toLowerCase().includes(query) ||
+        movie.genre?.toLowerCase().includes(query) ||
+        movie.review?.toLowerCase().includes(query) ||
+        movie.mood_tags?.some(tag => tag.toLowerCase().includes(query))
+      )
+    }
+    
+    return result
+  }, [movieList, filter, searchQuery])
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -87,14 +106,14 @@ export default function Movies() {
     }
   }
 
-  const deleteMovie = async (movie) => {
-    if (!window.confirm(`Delete "${movie.title}"?`)) return
-
+  const deleteMovie = async (movieId) => {
     try {
-      await movies.delete(movie.id)
-      setMovieList((current) => current.filter((item) => item.id !== movie.id))
+      await movies.delete(movieId)
+      setMovieList((current) => current.filter((item) => item.id !== movieId))
+      toast.success('Movie deleted')
     } catch (err) {
       console.error('Error deleting movie:', err)
+      toast.error('Failed to delete movie')
     }
   }
 
@@ -104,6 +123,12 @@ export default function Movies() {
         <p className="text-sm font-semibold uppercase tracking-wide text-earthy-600">Watchlist and watched</p>
         <h1 className="heading-1">Movies</h1>
       </div>
+
+      {/* Search Bar */}
+      <SearchBar 
+        placeholder="Search movies by title, genre, review, or tags..."
+        onSearch={setSearchQuery}
+      />
 
       <div className="flex flex-wrap gap-2">
         {[
@@ -158,7 +183,7 @@ export default function Movies() {
               <button type="button" onClick={() => toggleWatched(movie)} className="btn-secondary">
                 {movie.watched ? 'Move to Watchlist' : 'Mark Watched'}
               </button>
-              <button type="button" onClick={() => deleteMovie(movie)} className="btn-danger">
+              <button type="button" onClick={() => setConfirmDialog({ isOpen: true, movieId: movie.id, title: movie.title })} className="btn-danger">
                 Delete
               </button>
             </div>
@@ -253,6 +278,18 @@ export default function Movies() {
           </div>
         </form>
       </FormSheet>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, movieId: null })}
+        onConfirm={() => deleteMovie(confirmDialog.movieId)}
+        title="Delete Movie?"
+        message={`Are you sure you want to delete "${confirmDialog.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   )
 }
