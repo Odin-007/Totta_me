@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { todos } from '../api'
 import toast from 'react-hot-toast'
+import FormSheet from '../components/FormSheet'
 
 export default function Todos() {
   const [todoList, setTodoList] = useState([])
   const [newTodo, setNewTodo] = useState('')
   const [loading, setLoading] = useState(false)
   const [listLoading, setListLoading] = useState(true)
+  const [formOpen, setFormOpen] = useState(false)
 
   useEffect(() => {
     loadTodos()
@@ -36,6 +38,7 @@ export default function Todos() {
       const res = await todos.create(newTodo)
       setTodoList([...todoList, res.data])
       setNewTodo('')
+      setFormOpen(false)
       toast.success('Todo added!')
     } catch (err) {
       console.error('Error creating todo:', err)
@@ -83,36 +86,16 @@ export default function Todos() {
         )}
       </div>
 
-      <form onSubmit={addTodo} className="card">
-        <label className="block text-xs font-semibold text-gray-600 mb-2">
-          New Todo <span className="text-pink-500">*</span>
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newTodo}
-            onChange={(e) => setNewTodo(e.target.value)}
-            placeholder="What needs to be done?"
-            className="flex-1 input"
-            required
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary disabled:opacity-50"
-          >
-            {loading ? 'Adding...' : 'Add'}
-          </button>
-        </div>
-      </form>
-
       {listLoading && <p className="text-gray-500">Loading todos...</p>}
 
       {!listLoading && todoList.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-5xl mb-3">✅</div>
+        <div className="text-center py-12 card">
+          <div className="text-6xl mb-4">✅</div>
           <h3 className="text-xl font-bold text-gray-800 mb-2">All clear!</h3>
-          <p className="text-gray-500 text-sm">Add your first todo above</p>
+          <p className="text-gray-500 text-sm mb-6">No todos yet. Tap the + button to add one</p>
+          <button onClick={() => setFormOpen(true)} className="btn-gradient">
+            Add First Todo
+          </button>
         </div>
       )}
 
@@ -152,6 +135,58 @@ export default function Todos() {
           </div>
         ))}
       </div>
+
+      {/* FAB Button */}
+      <button 
+        onClick={() => setFormOpen(true)}
+        className="fixed bottom-20 lg:bottom-8 right-6 w-14 h-14 gradient-primary text-white rounded-full shadow-pink-lg hover:shadow-pink-lg hover:scale-110 smooth-transition z-30 flex items-center justify-center"
+        aria-label="Add todo"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+
+      {/* Form Sheet */}
+      <FormSheet 
+        isOpen={formOpen} 
+        onClose={() => setFormOpen(false)}
+        title="Add New Todo"
+      >
+        <form onSubmit={addTodo} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              What needs to be done? <span className="text-pink-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={newTodo}
+              onChange={(e) => setNewTodo(e.target.value)}
+              placeholder="Enter todo item..."
+              className="input w-full"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setFormOpen(false)}
+              className="btn-outline flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-gradient flex-1 disabled:opacity-50"
+            >
+              {loading ? 'Adding...' : 'Add Todo'}
+            </button>
+          </div>
+        </form>
+      </FormSheet>
     </div>
   )
 }

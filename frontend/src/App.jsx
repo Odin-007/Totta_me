@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast'
 import AuthContext from './context/AuthContext'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
+import TabNavigation from './components/TabNavigation'
 import Dashboard from './pages/Dashboard'
 import Todos from './pages/Todo'
 import Places from './pages/Places'
@@ -18,9 +19,19 @@ import Login from './pages/Login'
 function AppShell({ sidebarOpen, setSidebarOpen }) {
   return (
     <div className="flex h-screen bg-cream overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <Sidebar isOpen={true} onClose={() => {}} />
+      </div>
+      
       <div className="flex-1 flex flex-col min-w-0">
         <Header onMenuClick={() => setSidebarOpen(true)} />
+        
+        {/* Mobile tab navigation */}
+        <div className="lg:hidden">
+          <TabNavigation />
+        </div>
+        
         <main className="flex-1 overflow-auto p-4 lg:p-6">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" />} />

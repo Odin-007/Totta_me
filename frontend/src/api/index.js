@@ -128,6 +128,11 @@ export const dashboard = {
   getStats: () => apiClient.get('/api/dashboard/stats'),
 }
 
+// Feed APIs
+export const feed = {
+  get: (limit = 20) => apiClient.get('/api/feed', { params: { limit } }),
+}
+
 // Monthly Review APIs
 export const monthlyReview = {
   get: (year, month) => apiClient.get('/api/monthly-review', { params: { year, month } }),

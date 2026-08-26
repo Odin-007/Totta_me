@@ -601,14 +601,20 @@ async def head_root():
 
 @app.get("/api/todos")
 async def get_todos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    todos = db.query(TodoItem).all()
-    return [TodoResponse(
-        id=str(t.id),
-        title=t.title,
-        completed=t.completed,
-        due_date=t.due_date,
-        created_at=t.created_at
-    ) for t in todos]
+    todos_list = db.query(TodoItem).all()
+    result = []
+    for t in todos_list:
+        user = db.query(User).filter(User.id == t.user_id).first()
+        result.append({
+            "id": str(t.id),
+            "title": t.title,
+            "completed": t.completed,
+            "due_date": t.due_date,
+            "created_at": t.created_at,
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    return result
 
 @app.post("/api/todos", response_model=TodoResponse)
 async def create_todo(todo: TodoCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -680,18 +686,24 @@ async def delete_todo(todo_id: str, current_user: User = Depends(get_current_use
 
 @app.get("/api/places")
 async def get_places(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    places = db.query(Place).all()
-    return [PlaceResponse(
-        id=str(p.id),
-        name=p.name,
-        latitude=p.latitude,
-        longitude=p.longitude,
-        address=p.address,
-        tags=p.tags or [],
-        visited=p.visited,
-        visited_date=p.visited_date,
-        notes=p.notes
-    ) for p in places]
+    places_list = db.query(Place).all()
+    result = []
+    for p in places_list:
+        user = db.query(User).filter(User.id == p.user_id).first()
+        result.append({
+            "id": str(p.id),
+            "name": p.name,
+            "latitude": p.latitude,
+            "longitude": p.longitude,
+            "address": p.address,
+            "tags": p.tags or [],
+            "visited": p.visited,
+            "visited_date": p.visited_date,
+            "notes": p.notes,
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    return result
 
 @app.post("/api/places", response_model=PlaceResponse)
 async def create_place(place: PlaceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -721,18 +733,24 @@ async def create_place(place: PlaceCreate, current_user: User = Depends(get_curr
 
 @app.get("/api/movies")
 async def get_movies(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    movies = db.query(Movie).all()
-    return [MovieResponse(
-        id=str(m.id),
-        title=m.title,
-        year=m.year,
-        genre=m.genre,
-        watched=m.watched,
-        watched_date=m.watched_date,
-        rating=m.rating,
-        review=m.review,
-        mood_tags=m.mood_tags or []
-    ) for m in movies]
+    movies_list = db.query(Movie).all()
+    result = []
+    for m in movies_list:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        result.append({
+            "id": str(m.id),
+            "title": m.title,
+            "year": m.year,
+            "genre": m.genre,
+            "watched": m.watched,
+            "watched_date": m.watched_date,
+            "rating": m.rating,
+            "review": m.review,
+            "mood_tags": m.mood_tags or [],
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    return result
 
 @app.post("/api/movies", response_model=MovieResponse)
 async def create_movie(movie: MovieCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -797,18 +815,24 @@ async def delete_movie(movie_id: str, current_user: User = Depends(get_current_u
 
 @app.get("/api/activities")
 async def get_activities(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    activities = db.query(Activity).order_by(Activity.planned_date).all()
-    return [ActivityResponse(
-        id=str(a.id),
-        title=a.title,
-        planned_date=a.planned_date,
-        completed_date=a.completed_date,
-        category=a.category,
-        is_recurring=a.is_recurring,
-        notes=a.notes,
-        place_id=str(a.place_id) if a.place_id else None,
-        mood_tags=a.mood_tags or []
-    ) for a in activities]
+    activities_list = db.query(Activity).order_by(Activity.planned_date).all()
+    result = []
+    for a in activities_list:
+        user = db.query(User).filter(User.id == a.user_id).first()
+        result.append({
+            "id": str(a.id),
+            "title": a.title,
+            "planned_date": a.planned_date,
+            "completed_date": a.completed_date,
+            "category": a.category,
+            "is_recurring": a.is_recurring,
+            "notes": a.notes,
+            "place_id": str(a.place_id) if a.place_id else None,
+            "mood_tags": a.mood_tags or [],
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    return result
 
 @app.post("/api/activities", response_model=ActivityResponse)
 async def create_activity(activity: ActivityCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -873,17 +897,23 @@ async def delete_activity(activity_id: str, current_user: User = Depends(get_cur
 
 @app.get("/api/memories")
 async def get_memories(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    memories = db.query(Memory).order_by(Memory.memory_date.desc()).all()
-    return [MemoryResponse(
-        id=str(m.id),
-        memory_date=m.memory_date,
-        title=m.title,
-        notes=m.notes,
-        photo_url=m.photo_url,
-        place_id=str(m.place_id) if m.place_id else None,
-        activity_id=str(m.activity_id) if m.activity_id else None,
-        mood_tags=m.mood_tags or []
-    ) for m in memories]
+    memories_list = db.query(Memory).order_by(Memory.memory_date.desc()).all()
+    result = []
+    for m in memories_list:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        result.append({
+            "id": str(m.id),
+            "memory_date": m.memory_date,
+            "title": m.title,
+            "notes": m.notes,
+            "photo_url": m.photo_url,
+            "place_id": str(m.place_id) if m.place_id else None,
+            "activity_id": str(m.activity_id) if m.activity_id else None,
+            "mood_tags": m.mood_tags or [],
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    return result
 
 @app.post("/api/memories", response_model=MemoryResponse)
 async def create_memory(memory: MemoryCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1122,6 +1152,83 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
         "activities_upcoming": activities_upcoming,
         "total_memories": total_memories
     }
+
+# ============================================================================
+# ROUTES - UNIFIED FEED
+# ============================================================================
+
+@app.get("/api/feed")
+async def get_feed(
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get unified timeline feed of recent activities across all categories"""
+    feed_items = []
+    
+    # Recent memories
+    memories_list = db.query(Memory).order_by(Memory.memory_date.desc()).limit(limit).all()
+    for m in memories_list:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        feed_items.append({
+            "id": str(m.id),
+            "type": "memory",
+            "title": m.title,
+            "date": m.memory_date.isoformat(),
+            "photo_url": m.photo_url,
+            "mood_tags": m.mood_tags or [],
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    
+    # Recent activities (completed)
+    activities_list = db.query(Activity).filter(Activity.completed_date != None).order_by(Activity.completed_date.desc()).limit(limit).all()
+    for a in activities_list:
+        user = db.query(User).filter(User.id == a.user_id).first()
+        feed_items.append({
+            "id": str(a.id),
+            "type": "activity",
+            "title": a.title,
+            "date": a.completed_date.isoformat() if a.completed_date else a.planned_date.isoformat(),
+            "category": a.category,
+            "mood_tags": a.mood_tags or [],
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    
+    # Recent movies (watched)
+    movies_list = db.query(Movie).filter(Movie.watched == True).order_by(Movie.watched_date.desc()).limit(limit).all()
+    for m in movies_list:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        feed_items.append({
+            "id": str(m.id),
+            "type": "movie",
+            "title": m.title,
+            "date": m.watched_date.isoformat() if m.watched_date else datetime.utcnow().isoformat(),
+            "genre": m.genre,
+            "rating": m.rating,
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    
+    # Recent places (visited)
+    places_list = db.query(Place).filter(Place.visited == True).order_by(Place.visited_date.desc()).limit(limit).all()
+    for p in places_list:
+        user = db.query(User).filter(User.id == p.user_id).first()
+        feed_items.append({
+            "id": str(p.id),
+            "type": "place",
+            "title": p.name,
+            "date": p.visited_date.isoformat() if p.visited_date else datetime.utcnow().isoformat(),
+            "address": p.address,
+            "created_by": user.name if user else "Unknown",
+            "created_by_initials": user.initials if user else "?",
+        })
+    
+    # Sort by date descending
+    feed_items.sort(key=lambda x: x["date"], reverse=True)
+    
+    return {"feed": feed_items[:limit]}
 
 # ============================================================================
 # ROUTES - MONTHLY REVIEW

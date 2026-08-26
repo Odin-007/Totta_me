@@ -21,17 +21,6 @@ export default function Header({ onMenuClick }) {
     <header className="sticky top-0 z-30 glass-card border-b border-pink-200 px-4 lg:px-6 py-3 lg:py-4">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          {/* Hamburger button for mobile */}
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden text-gray-600 hover:text-pink-600 p-2 -ml-2 rounded-lg hover:bg-pink-50 smooth-transition touch-target"
-            aria-label="Open menu"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          
           <div>
             <h2 className="text-lg lg:text-xl font-semibold text-pink-700 flex items-center gap-2">
               Welcome back! <span className="text-xl">🎈</span>
