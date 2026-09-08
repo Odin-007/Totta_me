@@ -10,7 +10,7 @@ import Todos from './pages/Todo'
 import Places from './pages/Places'
 import Activities from './pages/Activities'
 import Memories from './pages/Memories'
-import Movies from './pages/Movies'
+import Content from './pages/Content'
 import MonthlyReview from './pages/MonthlyReview'
 import AiSuggestions from './pages/AiSuggestions'
 import Profile from './pages/Profile'
@@ -39,7 +39,7 @@ function AppShell({ sidebarOpen, setSidebarOpen }) {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/todos" element={<Todos />} />
             <Route path="/places" element={<Places />} />
-            <Route path="/movies" element={<Movies />} />
+            <Route path="/movies" element={<Content />} />
             <Route path="/activities" element={<Activities />} />
             <Route path="/memories" element={<Memories />} />
             <Route path="/monthly-review" element={<MonthlyReview />} />

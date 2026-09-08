@@ -4,7 +4,7 @@ import { useRef, useEffect } from 'react'
 const TABS = [
   { to: '/dashboard', label: 'Home', icon: '🏠' },
   { to: '/memories', label: 'Memories', icon: '💕' },
-  { to: '/movies', label: 'Movies', icon: '🎬' },
+  { to: '/movies', label: 'Content', icon: '🎬' },
   { to: '/activities', label: 'Activities', icon: '🎯' },
   { to: '/places', label: 'Places', icon: '📍' },
   { to: '/todos', label: 'Todos', icon: '✓' },

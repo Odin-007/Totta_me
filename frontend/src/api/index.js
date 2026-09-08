@@ -80,6 +80,7 @@ export const movies = {
   delete: (id) => apiClient.delete(`/api/movies/${id}`),
   getWatchlist: () => apiClient.get('/api/movies?watched=false'),
   getWatched: () => apiClient.get('/api/movies?watched=true'),
+  search: (query, contentType = 'movie') => apiClient.get('/api/content/search', { params: { query, content_type: contentType } }),
 }
 
 // Activities APIs

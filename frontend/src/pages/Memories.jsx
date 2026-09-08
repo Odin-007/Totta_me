@@ -254,12 +254,12 @@ export default function Memories() {
       const payload = {
         title: form.title.trim(),
         memory_date: new Date(form.memory_date).toISOString(),
-        photos: allPhotos,
+        photos: allPhotos.length > 0 ? allPhotos : [],
         // Keep photo_url for backward compatibility (use first photo)
-        ...(allPhotos.length > 0 ? { photo_url: allPhotos[0] } : {}),
-        ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
-        ...(form.place_id.trim() ? { place_id: form.place_id.trim() } : {}),
-        ...(form.activity_id.trim() ? { activity_id: form.activity_id.trim() } : {}),
+        photo_url: allPhotos.length > 0 ? allPhotos[0] : null,
+        notes: form.notes.trim() || null,
+        place_id: form.place_id.trim() || null,
+        activity_id: form.activity_id.trim() || null,
         mood_tags: form.mood_tags
           .split(',')
           .map((tag) => tag.trim().toLowerCase())

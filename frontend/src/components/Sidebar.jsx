@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', mark: '01', icon: '📊' },
   { to: '/todos', label: 'Todos', mark: '02', icon: '✓' },
   { to: '/places', label: 'Places', mark: '03', icon: '📍' },
-  { to: '/movies', label: 'Movies', mark: '04', icon: '🎬' },
+  { to: '/movies', label: 'Content', mark: '04', icon: '🎬' },
   { to: '/activities', label: 'Activities', mark: '05', icon: '🎯' },
   { to: '/memories', label: 'Memories', mark: '06', icon: '💕' },
   { to: '/monthly-review', label: 'Monthly Review', mark: '07', icon: '📅' },

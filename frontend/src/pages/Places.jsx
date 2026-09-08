@@ -5,6 +5,11 @@ import FormSheet from '../components/FormSheet'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SearchBar from '../components/SearchBar'
 
+const LOCATION_TYPES = [
+  'In Pune',
+  'Outstation'
+]
+
 const QUICK_TAGS = [
   'Brunch Spot',
   'Date Night',
@@ -21,6 +26,7 @@ const QUICK_TAGS = [
 const DEFAULT_PLACE = {
   name: '',
   address: '',
+  location_type: '',
   tags: '',
   notes: '',
   photo_url: '',
@@ -39,6 +45,8 @@ export default function Places() {
   const [photoPreview, setPhotoPreview] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, placeId: null })
+  const [selectedTag, setSelectedTag] = useState('all')
+  const [selectedLocationType, setSelectedLocationType] = useState('all')
 
   useEffect(() => {
     loadPlaces()
@@ -101,6 +109,7 @@ export default function Places() {
     setForm({
       name: place.name,
       address: place.address || '',
+      location_type: place.location_type || '',
       tags: place.tags?.join(', ') || '',
       notes: place.notes || '',
       photo_url: place.photo_url || '',
@@ -141,6 +150,7 @@ export default function Places() {
       const payload = {
         name: form.name.trim(),
         address: form.address.trim() || null,
+        location_type: form.location_type || null,
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
         notes: form.notes.trim() || null,
         photo_url: photoUrl || null,
@@ -193,12 +203,43 @@ export default function Places() {
     }
   }
 
+  // Calculate tag counts
+  const tagCounts = useMemo(() => {
+    const counts = {}
+    placesList.forEach(place => {
+      place.tags?.forEach(tag => {
+        counts[tag] = (counts[tag] || 0) + 1
+      })
+    })
+    return counts
+  }, [placesList])
+
+  // Calculate location type counts
+  const locationTypeCounts = useMemo(() => {
+    const counts = {}
+    placesList.forEach(place => {
+      const type = place.location_type || 'Not Set'
+      counts[type] = (counts[type] || 0) + 1
+    })
+    return counts
+  }, [placesList])
+
   const filtered = useMemo(() => {
     let result = placesList
     
     // Filter by visited status
     if (filter === 'visited') result = result.filter(place => place.visited)
     else if (filter === 'wishlist') result = result.filter(place => !place.visited)
+    
+    // Filter by location type
+    if (selectedLocationType !== 'all') {
+      result = result.filter(place => place.location_type === selectedLocationType)
+    }
+    
+    // Filter by tag
+    if (selectedTag !== 'all') {
+      result = result.filter(place => place.tags?.includes(selectedTag))
+    }
     
     // Filter by search query
     if (searchQuery.trim()) {
@@ -212,7 +253,7 @@ export default function Places() {
     }
     
     return result
-  }, [placesList, filter, searchQuery])
+  }, [placesList, filter, searchQuery, selectedLocationType, selectedTag])
 
   return (
     <div className="space-y-6 slide-in-up">
@@ -227,22 +268,115 @@ export default function Places() {
         onSearch={setSearchQuery}
       />
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        {[
-          ['all', `All (${placesList.length})`],
-          ['visited', `Visited (${placesList.filter(p => p.visited).length})`],
-          ['wishlist', `Wishlist (${placesList.filter(p => !p.visited).length})`],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setFilter(value)}
-            className={`rounded-md px-4 py-2 text-sm font-semibold ${filter === value ? 'bg-pink-500 text-white shadow-pink-md' : 'bg-white text-gray-600 ring-1 ring-pink-100 hover:bg-pink-50'}`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Advanced Filters Panel */}
+      <div className="card space-y-4">
+        {/* Visited Status Filters */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Status</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['all', `All (${placesList.length})`],
+              ['visited', `Visited (${placesList.filter(p => p.visited).length})`],
+              ['wishlist', `Wishlist (${placesList.filter(p => !p.visited).length})`],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilter(value)}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                  filter === value 
+                    ? 'bg-pink-500 text-white shadow-sm' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-pink-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Location Type Filters */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Location</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedLocationType('all')}
+              className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                selectedLocationType === 'all'
+                  ? 'bg-earthy-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-earthy-50'
+              }`}
+            >
+              All ({placesList.length})
+            </button>
+            {Object.entries(locationTypeCounts).map(([type, count]) => (
+              <button
+                key={type}
+                onClick={() => setSelectedLocationType(type)}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                  selectedLocationType === type
+                    ? 'bg-earthy-500 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-earthy-50'
+                }`}
+              >
+                {type} ({count})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tag Filters */}
+        {Object.keys(tagCounts).length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tags</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedTag('all')}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                  selectedTag === 'all'
+                    ? 'bg-purple-500 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-purple-50'
+                }`}
+              >
+                All Tags
+              </button>
+              {Object.entries(tagCounts)
+                .sort(([, a], [, b]) => b - a)
+                .map(([tag, count]) => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(tag)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                      selectedTag === tag
+                        ? 'bg-purple-500 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-purple-50'
+                    }`}
+                  >
+                    {tag} ({count})
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Active Filters Summary */}
+        {(filter !== 'all' || selectedLocationType !== 'all' || selectedTag !== 'all') && (
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-bold text-pink-600">{filtered.length}</span> of {placesList.length} places
+            </p>
+            <button
+              onClick={() => {
+                setFilter('all')
+                setSelectedLocationType('all')
+                setSelectedTag('all')
+              }}
+              className="text-sm text-pink-600 hover:text-pink-700 font-semibold"
+            >
+              Clear Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {loading && <p className="text-gray-500">Loading places...</p>}
@@ -342,6 +476,29 @@ export default function Places() {
             {touched.name && !form.name.trim() && (
               <p className="text-red-500 text-xs mt-1">Name is required</p>
             )}
+          </div>
+
+          {/* Location Type */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Location Type <span className="text-gray-400">(optional)</span>
+            </label>
+            <div className="flex gap-2">
+              {LOCATION_TYPES.map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => updateForm('location_type', type)}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold smooth-transition ${
+                    form.location_type === type
+                      ? 'bg-earthy-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-earthy-100'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Photo Upload */}
