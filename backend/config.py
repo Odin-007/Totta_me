@@ -49,7 +49,7 @@ SUPPORTED_IMAGE_TYPES = {
     "image/webp": "webp",
 }
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
