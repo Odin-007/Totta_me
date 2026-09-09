@@ -12,6 +12,8 @@ export default function Todo() {
   const [formOpen, setFormOpen] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, todoId: null })
   const [showCompleted, setShowCompleted] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editText, setEditText] = useState('')
 
   useEffect(() => {
     loadTodos()
@@ -57,6 +59,33 @@ export default function Todo() {
       setTodoList(todoList.map(t => t.id === id ? res.data : t))
     } catch (err) {
       console.error('Error updating todo:', err)
+    }
+  }
+
+  const startEdit = (todo) => {
+    setEditingId(todo.id)
+    setEditText(todo.title)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditText('')
+  }
+
+  const saveEdit = async (id) => {
+    const title = editText.trim()
+    if (!title) {
+      toast.error('Todo cannot be empty')
+      return
+    }
+    try {
+      const res = await todos.update(id, { title })
+      setTodoList(todoList.map(t => t.id === id ? res.data : t))
+      setEditingId(null)
+      setEditText('')
+    } catch (err) {
+      console.error('Error updating todo:', err)
+      toast.error('Failed to update todo')
     }
   }
 
@@ -115,23 +144,74 @@ export default function Todo() {
               onChange={() => toggleTodo(todo.id, todo.completed)}
               className="w-5 h-5 text-pink-500 cursor-pointer rounded"
             />
-            <span className="flex-1 text-gray-700 font-medium">
-              {todo.title}
-            </span>
+            {editingId === todo.id ? (
+              <input
+                type="text"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveEdit(todo.id)
+                  if (e.key === 'Escape') cancelEdit()
+                }}
+                className="input flex-1 py-1"
+                autoFocus
+              />
+            ) : (
+              <span
+                onClick={() => startEdit(todo)}
+                className="flex-1 text-gray-700 font-medium cursor-text"
+              >
+                {todo.title}
+              </span>
+            )}
             {todo.due_date && (
               <span className="text-xs text-gray-400">
                 {new Date(todo.due_date).toLocaleDateString()}
               </span>
             )}
-            <button
-              onClick={() => setConfirmDialog({ isOpen: true, todoId: todo.id, title: todo.title })}
-              className="p-2 text-gray-400 hover:text-red-600 smooth-transition"
-              aria-label="Delete"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            {editingId === todo.id ? (
+              <>
+                <button
+                  onClick={() => saveEdit(todo.id)}
+                  className="p-2 text-gray-400 hover:text-green-600 smooth-transition"
+                  aria-label="Save"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className="p-2 text-gray-400 hover:text-red-600 smooth-transition"
+                  aria-label="Cancel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => startEdit(todo)}
+                  className="p-2 text-gray-400 hover:text-pink-600 smooth-transition"
+                  aria-label="Edit"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setConfirmDialog({ isOpen: true, todoId: todo.id, title: todo.title })}
+                  className="p-2 text-gray-400 hover:text-red-600 smooth-transition"
+                  aria-label="Delete"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
         ))}
       </div>

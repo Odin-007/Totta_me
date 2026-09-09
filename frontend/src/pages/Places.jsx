@@ -11,6 +11,8 @@ const LOCATION_TYPES = [
 ]
 
 const QUICK_TAGS = [
+  'Cafe',
+  'Restaurant',
   'Brunch Spot',
   'Date Night',
   'Fancy Dinner',

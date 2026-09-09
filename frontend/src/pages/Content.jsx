@@ -11,6 +11,19 @@ const CONTENT_TYPES = [
   { value: 'short_film', label: 'Short Film', icon: '🎞️' },
 ]
 
+const MOOD_TAGS = [
+  'Comedy',
+  'Thriller',
+  'Feel-Good',
+  'Rewatch',
+  'Cry Fest',
+  'Weekend Binge',
+  'Date Night',
+  'Action-Packed',
+  'Mind-Bending',
+  'Cozy Night In',
+]
+
 const DEFAULT_CONTENT = {
   title: '',
   content_type: 'movie',
@@ -25,6 +38,7 @@ export default function Content() {
   const [form, setForm] = useState(DEFAULT_CONTENT)
   const [filter, setFilter] = useState('watchlist')
   const [contentTypeFilter, setContentTypeFilter] = useState('all')
+  const [selectedMoodTag, setSelectedMoodTag] = useState('all')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -60,18 +74,34 @@ export default function Content() {
     return counts
   }, [contentList])
 
+  // Calculate mood tag counts
+  const moodTagCounts = useMemo(() => {
+    const counts = {}
+    contentList.forEach(item => {
+      item.mood_tags?.forEach(tag => {
+        counts[tag] = (counts[tag] || 0) + 1
+      })
+    })
+    return counts
+  }, [contentList])
+
   const filteredContent = useMemo(() => {
     let result = contentList
-    
+
     // Filter by watched status
     if (filter === 'watched') result = result.filter((item) => item.watched)
     else if (filter === 'watchlist') result = result.filter((item) => !item.watched)
-    
+
     // Filter by content type
     if (contentTypeFilter !== 'all') {
       result = result.filter((item) => (item.content_type || 'movie') === contentTypeFilter)
     }
-    
+
+    // Filter by mood tag
+    if (selectedMoodTag !== 'all') {
+      result = result.filter((item) => item.mood_tags?.includes(selectedMoodTag))
+    }
+
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
@@ -82,9 +112,9 @@ export default function Content() {
         item.mood_tags?.some(tag => tag.toLowerCase().includes(query))
       )
     }
-    
+
     return result
-  }, [contentList, filter, contentTypeFilter, searchQuery])
+  }, [contentList, filter, contentTypeFilter, selectedMoodTag, searchQuery])
 
   const watchlistItems = filteredContent.filter(item => !item.watched)
   const watchedItems = filteredContent.filter(item => item.watched)
@@ -92,6 +122,19 @@ export default function Content() {
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const toggleMoodTag = (tag) => {
+    const currentTags = form.mood_tags.split(',').map((t) => t.trim()).filter(Boolean)
+    const tagIndex = currentTags.indexOf(tag)
+
+    if (tagIndex > -1) {
+      currentTags.splice(tagIndex, 1)
+    } else {
+      currentTags.push(tag)
+    }
+
+    updateForm('mood_tags', currentTags.join(', '))
   }
 
   // TMDB Search with debounce
@@ -169,7 +212,7 @@ export default function Content() {
       toast.success(`${typeName} added to watchlist!`)
     } catch (err) {
       console.error('Error creating content:', err)
-      toast.error('Failed to add content')
+      toast.error('Failed to add to watchlist')
     } finally {
       setSaving(false)
     }
@@ -192,7 +235,7 @@ export default function Content() {
     try {
       await movies.delete(contentId)
       setContentList((current) => current.filter((item) => item.id !== contentId))
-      toast.success('Content deleted')
+      toast.success('Removed from watchlist')
     } catch (err) {
       console.error('Error deleting content:', err)
       toast.error('Failed to delete content')
@@ -211,7 +254,7 @@ export default function Content() {
     <div className="space-y-6 slide-in-up">
       <div>
         <p className="text-sm font-semibold uppercase tracking-wide text-earthy-600">Watch together</p>
-        <h1 className="heading-1 gradient-text">Content</h1>
+        <h1 className="heading-1 gradient-text">Watchlist</h1>
       </div>
 
       {/* Search Bar */}
@@ -275,13 +318,47 @@ export default function Content() {
             ))}
           </div>
         </div>
+
+        {/* Mood Tag Filters */}
+        {Object.keys(moodTagCounts).length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Mood</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedMoodTag('all')}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                  selectedMoodTag === 'all'
+                    ? 'bg-purple-500 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-purple-50'
+                }`}
+              >
+                All Moods
+              </button>
+              {Object.entries(moodTagCounts)
+                .sort(([, a], [, b]) => b - a)
+                .map(([tag, count]) => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedMoodTag(tag)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
+                      selectedMoodTag === tag
+                        ? 'bg-purple-500 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-purple-50'
+                    }`}
+                  >
+                    {tag} ({count})
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {loading && <p className="text-gray-500">Loading content...</p>}
+      {loading && <p className="text-gray-500">Loading watchlist...</p>}
 
       {!loading && filteredContent.length === 0 && (
         <div className="rounded-lg border border-dashed border-pink-200 bg-pink-50 p-6 text-center text-gray-600">
-          No content found.
+          No watchlist items found.
         </div>
       )}
 
@@ -412,7 +489,7 @@ export default function Content() {
       <button 
         onClick={() => setFormOpen(true)}
         className="fixed bottom-20 lg:bottom-8 right-6 w-14 h-14 gradient-primary text-white rounded-full shadow-pink-lg hover:scale-110 smooth-transition z-30 flex items-center justify-center"
-        aria-label="Add content"
+        aria-label="Add to watchlist"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -423,7 +500,7 @@ export default function Content() {
       <FormSheet 
         isOpen={formOpen} 
         onClose={() => { setFormOpen(false); setForm(DEFAULT_CONTENT) }}
-        title="Add Content"
+        title="Add to Watchlist"
       >
         <form onSubmit={addContent} className="space-y-4">
           {/* Content Type Selector */}
@@ -512,28 +589,41 @@ export default function Content() {
               />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Genre <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                value={form.genre}
-                onChange={(event) => updateForm('genre', event.target.value)}
-                placeholder="Comedy, Romance..."
-                className="input w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tags <span className="text-gray-400">(optional, comma separated)</span>
-              </label>
-              <input
-                value={form.mood_tags}
-                onChange={(event) => updateForm('mood_tags', event.target.value)}
-                placeholder="Comma separated"
-                className="input w-full"
-              />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Genre <span className="text-gray-400">(optional)</span>
+            </label>
+            <input
+              value={form.genre}
+              onChange={(event) => updateForm('genre', event.target.value)}
+              placeholder="Comedy, Romance..."
+              className="input w-full"
+            />
+          </div>
+
+          {/* Mood Tags */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Mood <span className="text-gray-400">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {MOOD_TAGS.map((tag) => {
+                const isSelected = form.mood_tags.split(',').map((t) => t.trim()).includes(tag)
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleMoodTag(tag)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium smooth-transition ${
+                      isSelected
+                        ? 'bg-pink-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-700 hover:bg-pink-100'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
             </div>
           </div>
           <div className="flex gap-3 pt-4">
@@ -549,7 +639,7 @@ export default function Content() {
               disabled={saving}
               className="btn-gradient flex-1 disabled:opacity-50"
             >
-              {saving ? 'Adding...' : 'Add Content'}
+              {saving ? 'Adding...' : 'Add to Watchlist'}
             </button>
           </div>
         </form>
@@ -560,7 +650,7 @@ export default function Content() {
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog({ isOpen: false, contentId: null })}
         onConfirm={() => deleteContent(confirmDialog.contentId)}
-        title="Delete Content?"
+        title="Remove from Watchlist?"
         message={`Are you sure you want to delete "${confirmDialog.title}"? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"

@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', mark: '01', icon: '📊' },
   { to: '/todos', label: 'Todos', mark: '02', icon: '✓' },
   { to: '/places', label: 'Places', mark: '03', icon: '📍' },
-  { to: '/movies', label: 'Content', mark: '04', icon: '🎬' },
+  { to: '/movies', label: 'Watchlist', mark: '04', icon: '🎬' },
   { to: '/activities', label: 'Activities', mark: '05', icon: '🎯' },
   { to: '/memories', label: 'Memories', mark: '06', icon: '💕' },
   { to: '/monthly-review', label: 'Monthly Review', mark: '07', icon: '📅' },
@@ -77,12 +77,6 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
         
-        {/* Footer */}
-        <div className="absolute bottom-6 left-6 right-6">
-          <div className="glass-card rounded-xl p-4 text-center">
-            <p className="text-xs text-gray-600 mb-1">Made by CA</p>
-          </div>
-        </div>
       </aside>
     </>
   )
