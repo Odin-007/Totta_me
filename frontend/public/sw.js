@@ -1,4 +1,4 @@
-const CACHE_NAME = 'totta-me-v1'
+const CACHE_NAME = 'totta-me-v2'
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -30,16 +30,14 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.pathname.startsWith('/api')) return
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const fetched = fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
         }
         return response
-      }).catch(() => cached)
-
-      return cached || fetched
-    })
+      })
+      .catch(() => caches.match(request))
   )
 })
