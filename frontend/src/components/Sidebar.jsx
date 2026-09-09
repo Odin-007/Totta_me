@@ -1,14 +1,14 @@
 import { NavLink } from 'react-router-dom'
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', mark: '01', icon: '📊' },
-  { to: '/todos', label: 'Todos', mark: '02', icon: '✓' },
-  { to: '/places', label: 'Places', mark: '03', icon: '📍' },
-  { to: '/movies', label: 'Watchlist', mark: '04', icon: '🎬' },
-  { to: '/activities', label: 'Activities', mark: '05', icon: '🎯' },
-  { to: '/memories', label: 'Memories', mark: '06', icon: '💕' },
-  { to: '/monthly-review', label: 'Monthly Review', mark: '07', icon: '📅' },
-  { to: '/ai-suggestions', label: 'AI Suggestions', mark: '08', icon: '✨' },
+  { to: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { to: '/todos', label: 'Todos', icon: '✓' },
+  { to: '/places', label: 'Places', icon: '📍' },
+  { to: '/movies', label: 'Watchlist', icon: '🎬' },
+  { to: '/activities', label: 'Activities', icon: '🎯' },
+  { to: '/memories', label: 'Memories', icon: '💕' },
+  { to: '/monthly-review', label: 'Monthly Review', icon: '📅' },
+  { to: '/ai-suggestions', label: 'AI Suggestions', icon: '✨' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -64,15 +64,8 @@ export default function Sidebar({ isOpen, onClose }) {
               `}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              {({ isActive }) => (
-                <>
-                  <span className="text-xl">{item.icon}</span>
-                  <span className="flex-1">{item.label}</span>
-                  <span className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
-                    {item.mark}
-                  </span>
-                </>
-              )}
+              <span className="text-xl">{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
             </NavLink>
           ))}
         </nav>
