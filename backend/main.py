@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import CORS_ORIGINS, FRONTEND_URL
-from database import Base, SessionLocal, engine
+from database import Base, SessionLocal, engine, sync_missing_columns
 from routers import (
     activities,
     ai,
@@ -72,6 +72,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    sync_missing_columns(engine, Base)
     db = SessionLocal()
     try:
         ensure_allowed_users(db)

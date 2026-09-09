@@ -5,7 +5,7 @@ Works against both SQLite (local/dev, tests) and Postgres (DATABASE_URL controls
 
 import json
 
-from sqlalchemy import create_engine, String, Text, TypeDecorator
+from sqlalchemy import create_engine, inspect, String, text, Text, TypeDecorator
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from config import DATABASE_URL
@@ -57,6 +57,27 @@ class JSONList(TypeDecorator):
             return json.loads(value)
         except json.JSONDecodeError:
             return []
+
+
+def sync_missing_columns(bind, base):
+    """Add columns that exist on the models but not on the live tables.
+
+    create_all() only creates tables that don't exist yet - it never alters
+    existing ones, so a column added to a model silently never reaches the
+    database. This adds them in place instead of requiring a full migration
+    tool.
+    """
+    inspector = inspect(bind)
+    with bind.begin() as conn:
+        for table in base.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing_columns = {col["name"] for col in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing_columns:
+                    continue
+                column_type = column.type.compile(dialect=bind.dialect)
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column_type}'))
 
 
 def get_db():
