@@ -88,6 +88,7 @@ class Activity(Base):
     activity_time = Column(String(10), nullable=True)
     notes = Column(Text, nullable=True)
     place_id = Column(GUID(), nullable=True)
+    photos = Column(JSONList(), default=[])
     mood_tags = Column(JSONList(), default=[])
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

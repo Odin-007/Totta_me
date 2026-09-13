@@ -121,6 +121,25 @@ export const uploads = {
 
     return { data }
   },
+  activityPhoto: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const token = localStorage.getItem('access_token')
+    const response = await fetch(`${API_URL}/api/uploads/activity-photo`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const error = new Error(data.detail || 'Upload failed')
+      error.response = { status: response.status, data }
+      throw error
+    }
+
+    return { data }
+  },
   placePhoto: (formData) =>
     apiClient.post('/api/uploads/place-photo', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }

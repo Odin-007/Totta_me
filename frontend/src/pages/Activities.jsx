@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { activities } from '../api'
+import { activities, uploads } from '../api'
 import CollaborativeNotes from '../components/CollaborativeNotes'
 import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SearchBar from '../components/SearchBar'
+import ImageGallery from '../components/ImageGallery'
+import SafeImage from '../components/SafeImage'
 
 const CATEGORIES = {
   date: {
@@ -54,6 +56,65 @@ function getCategory(category) {
   return CATEGORIES[category] || CATEGORIES.date
 }
 
+const IMAGE_MAX_WIDTH = 1600
+const IMAGE_MAX_HEIGHT = 1600
+const IMAGE_QUALITY = 0.78
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Please choose an image file.'))
+      return
+    }
+
+    const image = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+
+      const scale = Math.min(
+        1,
+        IMAGE_MAX_WIDTH / image.width,
+        IMAGE_MAX_HEIGHT / image.height,
+      )
+      const width = Math.round(image.width * scale)
+      const height = Math.round(image.height * scale)
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+
+      canvas.width = width
+      canvas.height = height
+      context.drawImage(image, 0, 0, width, height)
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Could not compress image.'))
+            return
+          }
+
+          const compressedFile = new File(
+            [blob],
+            `${file.name.replace(/\.[^.]+$/, '')}.webp`,
+            { type: 'image/webp' },
+          )
+          resolve(compressedFile)
+        },
+        'image/webp',
+        IMAGE_QUALITY,
+      )
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Could not read image.'))
+    }
+
+    image.src = objectUrl
+  })
+}
+
 export default function Activities() {
   const [activityList, setActivityList] = useState([])
   const [selectedActivity, setSelectedActivity] = useState(null)
@@ -65,10 +126,23 @@ export default function Activities() {
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, activityId: null })
+  const [photoFiles, setPhotoFiles] = useState([])
+  const [photoPreviews, setPhotoPreviews] = useState([])
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryImages, setGalleryImages] = useState([])
+  const [galleryIndex, setGalleryIndex] = useState(0)
 
   useEffect(() => {
     loadActivities()
   }, [])
+
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach((preview) => {
+        if (preview.startsWith('blob:')) URL.revokeObjectURL(preview)
+      })
+    }
+  }, [photoPreviews])
 
   const loadActivities = async () => {
     try {
@@ -110,6 +184,11 @@ export default function Activities() {
   const resetForm = () => {
     setForm(DEFAULT_ACTIVITY)
     setEditingActivityId(null)
+    photoPreviews.forEach((preview) => {
+      if (preview.startsWith('blob:')) URL.revokeObjectURL(preview)
+    })
+    setPhotoFiles([])
+    setPhotoPreviews([])
     setFormOpen(false)
   }
 
@@ -123,27 +202,80 @@ export default function Activities() {
       notes: activity.notes || '',
       mood_tags: activity.mood_tags?.join(', ') || '',
     })
+    photoPreviews.forEach((preview) => {
+      if (preview.startsWith('blob:')) URL.revokeObjectURL(preview)
+    })
+    setPhotoFiles([])
+    setPhotoPreviews(activity.photos || [])
     setFormOpen(true)
+  }
+
+  const addPhotos = (files) => {
+    const newFiles = Array.from(files)
+    const newPreviews = newFiles.map((file) => URL.createObjectURL(file))
+    setPhotoFiles((prev) => [...prev, ...newFiles])
+    setPhotoPreviews((prev) => [...prev, ...newPreviews])
+  }
+
+  const removePhoto = (index) => {
+    const preview = photoPreviews[index]
+    if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview)
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index))
+    if (preview?.startsWith('blob:')) {
+      const fileIndex = photoPreviews.slice(0, index).filter((p) => p.startsWith('blob:')).length
+      setPhotoFiles((prev) => prev.filter((_, i) => i !== fileIndex))
+    }
+  }
+
+  const handlePhotoSelect = (event) => {
+    const files = Array.from(event.target.files || [])
+    const validFiles = files.filter((file) => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 5MB)`)
+        return false
+      }
+      return true
+    })
+    if (validFiles.length > 0) addPhotos(validFiles)
+    event.target.value = ''
+  }
+
+  const openGallery = (imageUrls, startIndex = 0) => {
+    setGalleryImages(imageUrls)
+    setGalleryIndex(startIndex)
+    setGalleryOpen(true)
   }
 
   const saveActivity = async (event) => {
     event.preventDefault()
     if (!form.title.trim() || !form.planned_date) return
 
-    const payload = {
-      title: form.title.trim(),
-      planned_date: new Date(form.planned_date).toISOString(),
-      category: form.category,
-      activity_time: form.activity_time || null,
-      notes: form.notes.trim() || null,
-      mood_tags: form.mood_tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    }
-
     try {
       setSaving(true)
+
+      const uploadedPhotoUrls = []
+      for (const file of photoFiles) {
+        const compressedFile = await compressImage(file)
+        const uploadResult = await uploads.activityPhoto(compressedFile)
+        uploadedPhotoUrls.push(uploadResult.data.photo_url)
+      }
+
+      const existingPhotos = photoPreviews.filter((url) => url.startsWith('http'))
+      const allPhotos = [...existingPhotos, ...uploadedPhotoUrls]
+
+      const payload = {
+        title: form.title.trim(),
+        planned_date: new Date(form.planned_date).toISOString(),
+        category: form.category,
+        activity_time: form.activity_time || null,
+        notes: form.notes.trim() || null,
+        photos: allPhotos,
+        mood_tags: form.mood_tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      }
+
       const res = editingActivityId
         ? await activities.update(editingActivityId, payload)
         : await activities.create(payload)
@@ -159,6 +291,7 @@ export default function Activities() {
       toast.success(editingActivityId ? 'Activity updated!' : 'Activity added!')
     } catch (err) {
       console.error('Error saving activity:', err)
+      toast.error(err.response?.data?.detail || 'Could not save activity')
     } finally {
       setSaving(false)
     }
@@ -171,8 +304,10 @@ export default function Activities() {
       })
       setActivityList((current) => current.map((item) => item.id === activity.id ? res.data : item))
       setSelectedActivity(res.data)
+      toast.success(res.data.completed_date ? 'Marked as done!' : 'Marked as upcoming')
     } catch (err) {
       console.error('Error updating activity:', err)
+      toast.error('Could not update activity status')
     }
   }
 
@@ -268,6 +403,23 @@ export default function Activities() {
                     {activity.notes && (
                       <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-gray-600">{activity.notes}</p>
                     )}
+                    {activity.photos?.length > 0 && (
+                      <div className="mt-3 flex gap-2">
+                        {activity.photos.slice(0, 3).map((photo, photoIndex) => (
+                          <SafeImage
+                            key={photo}
+                            src={photo}
+                            alt={`${activity.title} photo ${photoIndex + 1}`}
+                            className="h-14 w-14 rounded-md object-cover"
+                          />
+                        ))}
+                        {activity.photos.length > 3 && (
+                          <div className="flex h-14 w-14 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-500">
+                            +{activity.photos.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </button>
 
@@ -288,6 +440,24 @@ export default function Activities() {
                         <p className="mt-4 rounded-md bg-white/70 p-3 text-sm leading-relaxed text-gray-700">
                           {activity.notes}
                         </p>
+                      )}
+                      {activity.photos?.length > 0 && (
+                        <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                          {activity.photos.map((photo, photoIndex) => (
+                            <button
+                              key={photo}
+                              type="button"
+                              onClick={() => openGallery(activity.photos, photoIndex)}
+                              className="aspect-square overflow-hidden rounded-md"
+                            >
+                              <SafeImage
+                                src={photo}
+                                alt={`${activity.title} photo ${photoIndex + 1}`}
+                                className="h-full w-full object-cover transition hover:scale-105"
+                              />
+                            </button>
+                          ))}
+                        </div>
                       )}
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button type="button" onClick={() => editActivity(activity)} className="btn-secondary">
@@ -407,6 +577,52 @@ export default function Activities() {
               className="input w-full resize-none"
             />
           </div>
+
+          {/* Photo Upload */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Add Photos <span className="text-gray-400 text-xs font-normal">(optional, multiple allowed)</span>
+            </label>
+            <label className="block cursor-pointer mb-3">
+              <div className="border-2 border-dashed border-pink-300 rounded-lg p-4 hover:border-pink-500 smooth-transition text-center">
+                <svg className="w-8 h-8 mx-auto mb-2 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-sm text-gray-600">
+                  {photoPreviews.length > 0 ? `${photoPreviews.length} photo(s) selected` : 'Choose photos'}
+                </span>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handlePhotoSelect}
+                className="hidden"
+              />
+            </label>
+
+            {photoPreviews.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {photoPreviews.map((preview, index) => (
+                  <div key={preview} className="relative aspect-square">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full hover:bg-red-600 smooth-transition flex items-center justify-center text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -425,6 +641,14 @@ export default function Activities() {
           </div>
         </form>
       </FormSheet>
+
+      {/* Image Gallery */}
+      <ImageGallery
+        images={galleryImages}
+        isOpen={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        initialIndex={galleryIndex}
+      />
 
       {/* Confirm Dialog */}
       <ConfirmDialog

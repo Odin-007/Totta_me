@@ -95,3 +95,12 @@ async def upload_memory_photo(
 ):
     """Upload memory photo to Supabase Storage"""
     return await _upload_to_supabase(file, "memories", current_user.id)
+
+
+@router.post("/api/uploads/activity-photo")
+async def upload_activity_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload activity photo to Supabase Storage"""
+    return await _upload_to_supabase(file, "activities", current_user.id)

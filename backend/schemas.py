@@ -142,6 +142,7 @@ class ActivityCreate(BaseModel):
     activity_time: Optional[str] = None
     notes: Optional[str] = None
     place_id: Optional[str] = None
+    photos: list = []
     mood_tags: list = []
 
 
@@ -151,6 +152,7 @@ class ActivityUpdate(BaseModel):
     completed_date: Optional[datetime] = None
     category: Optional[str] = None
     notes: Optional[str] = None
+    photos: Optional[list] = None
     mood_tags: Optional[list] = None
 
 
@@ -163,6 +165,7 @@ class ActivityResponse(BaseModel):
     is_recurring: bool
     notes: Optional[str] = None
     place_id: Optional[str] = None
+    photos: list = []
     mood_tags: list
 
 
