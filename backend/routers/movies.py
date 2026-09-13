@@ -4,7 +4,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from config import TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_BASE_URL
+from config import TMDB_API_KEY, TMDB_BASE_URL, TMDB_IMAGE_BASE_URL, TMDB_BACKDROP_BASE_URL
 from database import get_db
 from models import Movie, User
 from schemas import MovieCreate, MovieResponse, MovieUpdate
@@ -26,7 +26,9 @@ async def get_movies(current_user: User = Depends(get_current_user), db: Session
             "year": m.year,
             "genre": m.genre,
             "poster_url": m.poster_url,
-            "watched": m.watched,
+            "backdrop_url": m.backdrop_url,
+            "watched": bool(m.watched),
+            "watching": bool(m.watching),
             "watched_date": m.watched_date,
             "rating": m.rating,
             "review": m.review,
@@ -54,7 +56,9 @@ async def create_movie(movie: MovieCreate, current_user: User = Depends(get_curr
         year=new_movie.year,
         genre=new_movie.genre,
         poster_url=new_movie.poster_url,
-        watched=new_movie.watched,
+        backdrop_url=new_movie.backdrop_url,
+        watched=bool(new_movie.watched),
+        watching=bool(new_movie.watching),
         watched_date=new_movie.watched_date,
         rating=new_movie.rating,
         review=new_movie.review,
@@ -82,7 +86,9 @@ async def update_movie(movie_id: str, movie_update: MovieUpdate, current_user: U
         year=movie.year,
         genre=movie.genre,
         poster_url=movie.poster_url,
-        watched=movie.watched,
+        backdrop_url=movie.backdrop_url,
+        watched=bool(movie.watched),
+        watching=bool(movie.watching),
         watched_date=movie.watched_date,
         rating=movie.rating,
         review=movie.review,
@@ -144,18 +150,18 @@ async def search_content(query: str, content_type: str = "movie", current_user: 
                     except:
                         pass
 
-                # Get poster URL
+                # Get poster/backdrop URLs
                 poster_path = item.get("poster_path")
                 poster_url = f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None
-
-                # Get genres (would need another API call for full genre names, so we'll skip for now)
-                genre_ids = item.get("genre_ids", [])
+                backdrop_path = item.get("backdrop_path")
+                backdrop_url = f"{TMDB_BACKDROP_BASE_URL}{backdrop_path}" if backdrop_path else None
 
                 results.append({
                     "tmdb_id": item.get("id"),
                     "title": title,
                     "year": year,
                     "poster_url": poster_url,
+                    "backdrop_url": backdrop_url,
                     "overview": item.get("overview", ""),
                     "vote_average": item.get("vote_average"),
                     "content_type": content_type

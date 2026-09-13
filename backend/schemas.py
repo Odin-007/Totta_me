@@ -93,7 +93,9 @@ class MovieCreate(BaseModel):
     year: Optional[int] = None
     genre: Optional[str] = None
     poster_url: Optional[str] = None
+    backdrop_url: Optional[str] = None
     watched: bool = False
+    watching: bool = False
     watched_date: Optional[datetime] = None
     rating: Optional[int] = None
     review: Optional[str] = None
@@ -106,7 +108,9 @@ class MovieUpdate(BaseModel):
     year: Optional[int] = None
     genre: Optional[str] = None
     poster_url: Optional[str] = None
+    backdrop_url: Optional[str] = None
     watched: Optional[bool] = None
+    watching: Optional[bool] = None
     watched_date: Optional[datetime] = None
     rating: Optional[int] = None
     review: Optional[str] = None
@@ -120,7 +124,9 @@ class MovieResponse(BaseModel):
     year: Optional[int] = None
     genre: Optional[str] = None
     poster_url: Optional[str] = None
+    backdrop_url: Optional[str] = None
     watched: bool
+    watching: bool = False
     watched_date: Optional[datetime] = None
     rating: Optional[int] = None
     review: Optional[str] = None

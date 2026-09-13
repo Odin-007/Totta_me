@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { movies } from '../api'
 import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
@@ -30,13 +30,19 @@ const DEFAULT_CONTENT = {
   year: '',
   genre: '',
   poster_url: '',
+  backdrop_url: '',
   mood_tags: '',
+}
+
+function getStatus(item) {
+  if (item.watched) return 'watched'
+  if (item.watching) return 'watching'
+  return 'to_watch'
 }
 
 export default function Content() {
   const [contentList, setContentList] = useState([])
   const [form, setForm] = useState(DEFAULT_CONTENT)
-  const [filter, setFilter] = useState('watchlist')
   const [contentTypeFilter, setContentTypeFilter] = useState('all')
   const [selectedMoodTag, setSelectedMoodTag] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -48,6 +54,7 @@ export default function Content() {
   const [tmdbSearchResults, setTmdbSearchResults] = useState([])
   const [tmdbSearching, setTmdbSearching] = useState(false)
   const [showTmdbResults, setShowTmdbResults] = useState(false)
+  const tmdbAbortRef = useRef(null)
 
   useEffect(() => {
     loadContent()
@@ -88,10 +95,6 @@ export default function Content() {
   const filteredContent = useMemo(() => {
     let result = contentList
 
-    // Filter by watched status
-    if (filter === 'watched') result = result.filter((item) => item.watched)
-    else if (filter === 'watchlist') result = result.filter((item) => !item.watched)
-
     // Filter by content type
     if (contentTypeFilter !== 'all') {
       result = result.filter((item) => (item.content_type || 'movie') === contentTypeFilter)
@@ -114,11 +117,12 @@ export default function Content() {
     }
 
     return result
-  }, [contentList, filter, contentTypeFilter, selectedMoodTag, searchQuery])
+  }, [contentList, contentTypeFilter, selectedMoodTag, searchQuery])
 
-  const watchlistItems = filteredContent.filter(item => !item.watched)
-  const watchedItems = filteredContent.filter(item => item.watched)
-  const watchedCount = contentList.filter(item => item.watched).length
+  const toWatchItems = filteredContent.filter((item) => getStatus(item) === 'to_watch')
+  const watchingItems = filteredContent.filter((item) => getStatus(item) === 'watching')
+  const watchedItems = filteredContent.filter((item) => getStatus(item) === 'watched')
+  const watchedCount = watchedItems.length
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -137,7 +141,7 @@ export default function Content() {
     updateForm('mood_tags', currentTags.join(', '))
   }
 
-  // TMDB Search with debounce
+  // TMDB Search with debounce + cancellation of stale requests
   const searchTMDB = async (query) => {
     if (!query || query.length < 2) {
       setTmdbSearchResults([])
@@ -145,12 +149,17 @@ export default function Content() {
       return
     }
 
+    tmdbAbortRef.current?.abort()
+    const controller = new AbortController()
+    tmdbAbortRef.current = controller
+
     try {
       setTmdbSearching(true)
-      const res = await movies.search(query, form.content_type)
+      const res = await movies.search(query, form.content_type, controller.signal)
       setTmdbSearchResults(res.data || [])
       setShowTmdbResults(true)
     } catch (err) {
+      if (err.code === 'ERR_CANCELED') return
       console.error('TMDB search error:', err)
       setTmdbSearchResults([])
     } finally {
@@ -161,12 +170,12 @@ export default function Content() {
   // Debounced title change handler
   const handleTitleChange = (value) => {
     updateForm('title', value)
-    
+
     // Debounce search
     if (window.tmdbSearchTimeout) {
       clearTimeout(window.tmdbSearchTimeout)
     }
-    
+
     window.tmdbSearchTimeout = setTimeout(() => {
       searchTMDB(value)
     }, 500)
@@ -179,6 +188,7 @@ export default function Content() {
       title: result.title,
       year: result.year || '',
       poster_url: result.poster_url || '',
+      backdrop_url: result.backdrop_url || '',
     })
     setShowTmdbResults(false)
     setTmdbSearchResults([])
@@ -194,11 +204,13 @@ export default function Content() {
       ...(form.year ? { year: Number(form.year) } : {}),
       ...(form.genre.trim() ? { genre: form.genre.trim() } : {}),
       ...(form.poster_url ? { poster_url: form.poster_url } : {}),
+      ...(form.backdrop_url ? { backdrop_url: form.backdrop_url } : {}),
       mood_tags: form.mood_tags
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean),
       watched: false,
+      watching: false,
     }
 
     try {
@@ -206,7 +218,6 @@ export default function Content() {
       const res = await movies.create(payload)
       setContentList((current) => [res.data, ...current])
       setForm(DEFAULT_CONTENT)
-      setFilter('watchlist')
       setFormOpen(false)
       const typeName = CONTENT_TYPES.find(t => t.value === form.content_type)?.label || 'Content'
       toast.success(`${typeName} added to watchlist!`)
@@ -218,16 +229,23 @@ export default function Content() {
     }
   }
 
-  const toggleWatched = async (item) => {
+  const setItemStatus = async (item, status) => {
+    const payload =
+      status === 'watched'
+        ? { watched: true, watching: false, watched_date: new Date().toISOString() }
+        : status === 'watching'
+          ? { watched: false, watching: true, watched_date: null }
+          : { watched: false, watching: false, watched_date: null }
+
     try {
-      const watched = !item.watched
-      const res = await movies.update(item.id, {
-        watched,
-        watched_date: watched ? new Date().toISOString() : null,
-      })
+      const res = await movies.update(item.id, payload)
       setContentList((current) => current.map((content) => content.id === item.id ? res.data : content))
+      toast.success(
+        status === 'watched' ? 'Marked as watched!' : status === 'watching' ? 'Moved to Watching' : 'Moved to Watchlist'
+      )
     } catch (err) {
       console.error('Error updating content:', err)
+      toast.error('Failed to update status')
     }
   }
 
@@ -242,14 +260,6 @@ export default function Content() {
     }
   }
 
-  const getContentTypeLabel = (type) => {
-    return CONTENT_TYPES.find(t => t.value === type)?.label || 'Movie'
-  }
-
-  const getContentTypeIcon = (type) => {
-    return CONTENT_TYPES.find(t => t.value === type)?.icon || '🎬'
-  }
-
   return (
     <div className="space-y-6 slide-in-up">
       <div>
@@ -258,7 +268,7 @@ export default function Content() {
       </div>
 
       {/* Search Bar */}
-      <SearchBar 
+      <SearchBar
         placeholder="Search by title, genre, review, or tags..."
         onSearch={setSearchQuery}
       />
@@ -290,30 +300,6 @@ export default function Content() {
                 }`}
               >
                 {icon} {label} ({contentTypeCounts[value] || 0})
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Status Filters */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Status</p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              ['watchlist', `Watchlist (${contentList.filter((item) => !item.watched).length})`],
-              ['all', `All (${contentList.length})`],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`rounded-md px-3 py-1.5 text-sm font-semibold smooth-transition ${
-                  filter === value 
-                    ? 'bg-pink-500 text-white shadow-sm' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-pink-50'
-                }`}
-              >
-                {label}
               </button>
             ))}
           </div>
@@ -362,131 +348,56 @@ export default function Content() {
         </div>
       )}
 
-      {/* Watchlist Items */}
-      {!loading && watchlistItems.length > 0 && (
-        <div className="space-y-3">
-          {watchlistItems.map((item) => (
-            <article key={item.id} className="flex flex-col gap-3 rounded-lg border border-pink-100 bg-white p-4 shadow-sm md:flex-row md:items-start">
-              {/* Poster */}
-              {item.poster_url && (
-                <img 
-                  src={item.poster_url} 
-                  alt={item.title}
-                  className="w-24 h-36 object-cover rounded-lg shadow-md"
-                />
-              )}
-              
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-lg">{getContentTypeIcon(item.content_type)}</span>
-                  <h2 className="font-bold text-gray-800">{item.title}</h2>
-                  {item.year && <span className="text-sm text-gray-500">{item.year}</span>}
-                  <span className="rounded-full px-2.5 py-1 text-xs font-bold bg-pink-100 text-pink-700">
-                    Watchlist
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {getContentTypeLabel(item.content_type)}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {item.genre && (
-                    <span className="rounded-md bg-earthy-100 px-2 py-1 text-xs font-semibold text-earthy-700">
-                      {item.genre}
-                    </span>
-                  )}
-                  {item.mood_tags?.map((tag) => (
-                    <span key={tag} className="rounded-md bg-pink-50 px-2 py-1 text-xs font-semibold text-pink-700">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => toggleWatched(item)} className="btn-secondary">
-                  Mark Watched
-                </button>
-                <button type="button" onClick={() => setConfirmDialog({ isOpen: true, contentId: item.id, title: item.title })} className="btn-danger">
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+      {/* Watching - Netflix style row */}
+      {!loading && watchingItems.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
+            <span className="text-purple-600">▶</span> Watching
+            <span className="text-sm font-normal text-gray-400">({watchingItems.length})</span>
+          </h2>
+          <PosterGrid items={watchingItems} onSetStatus={setItemStatus} onDelete={(item) => setConfirmDialog({ isOpen: true, contentId: item.id, title: item.title })} />
+        </section>
       )}
 
-      {/* Watched Items - Collapsible */}
+      {/* To Watch - Netflix style row */}
+      {!loading && toWatchItems.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
+            <span className="text-pink-600">🔖</span> To Watch
+            <span className="text-sm font-normal text-gray-400">({toWatchItems.length})</span>
+          </h2>
+          <PosterGrid items={toWatchItems} onSetStatus={setItemStatus} onDelete={(item) => setConfirmDialog({ isOpen: true, contentId: item.id, title: item.title })} />
+        </section>
+      )}
+
+      {/* Watched - Collapsible, Netflix style when expanded */}
       {!loading && watchedCount > 0 && (
-        <div className="space-y-2">
+        <section className="space-y-3">
           <button
             onClick={() => setShowWatched(!showWatched)}
             className="w-full flex items-center justify-between p-3 bg-teal-50 rounded-lg text-teal-700 font-semibold hover:bg-teal-100 smooth-transition"
           >
-            <span>Watched ({watchedCount})</span>
-            <svg 
-              className={`w-5 h-5 smooth-transition ${showWatched ? 'rotate-180' : ''}`} 
-              fill="none" 
-              stroke="currentColor" 
+            <span>✓ Watched ({watchedCount})</span>
+            <svg
+              className={`w-5 h-5 smooth-transition ${showWatched ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          
+
           {showWatched && (
-            <div className="space-y-3 slide-in-up">
-              {watchedItems.map((item) => (
-                <article key={item.id} className="flex flex-col gap-3 rounded-lg border border-teal-100 bg-teal-50 p-4 shadow-sm md:flex-row md:items-start">
-                  {/* Poster */}
-                  {item.poster_url && (
-                    <img 
-                      src={item.poster_url} 
-                      alt={item.title}
-                      className="w-24 h-36 object-cover rounded-lg shadow-md"
-                    />
-                  )}
-                  
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-lg">{getContentTypeIcon(item.content_type)}</span>
-                      <h2 className="font-bold text-gray-800">{item.title}</h2>
-                      {item.year && <span className="text-sm text-gray-500">{item.year}</span>}
-                      <span className="rounded-full px-2.5 py-1 text-xs font-bold bg-teal-100 text-teal-700">
-                        Watched
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {getContentTypeLabel(item.content_type)}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {item.genre && (
-                        <span className="rounded-md bg-earthy-100 px-2 py-1 text-xs font-semibold text-earthy-700">
-                          {item.genre}
-                        </span>
-                      )}
-                      {item.mood_tags?.map((tag) => (
-                        <span key={tag} className="rounded-md bg-pink-50 px-2 py-1 text-xs font-semibold text-pink-700">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => toggleWatched(item)} className="btn-secondary">
-                      Move to Watchlist
-                    </button>
-                    <button type="button" onClick={() => setConfirmDialog({ isOpen: true, contentId: item.id, title: item.title })} className="btn-danger">
-                      Delete
-                    </button>
-                  </div>
-                </article>
-              ))}
+            <div className="slide-in-up">
+              <PosterGrid items={watchedItems} onSetStatus={setItemStatus} onDelete={(item) => setConfirmDialog({ isOpen: true, contentId: item.id, title: item.title })} />
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* FAB Button */}
-      <button 
+      <button
         onClick={() => setFormOpen(true)}
         className="fixed bottom-20 lg:bottom-8 right-6 w-14 h-14 gradient-primary text-white rounded-full shadow-pink-lg hover:scale-110 smooth-transition z-30 flex items-center justify-center"
         aria-label="Add to watchlist"
@@ -497,8 +408,8 @@ export default function Content() {
       </button>
 
       {/* Form Sheet */}
-      <FormSheet 
-        isOpen={formOpen} 
+      <FormSheet
+        isOpen={formOpen}
         onClose={() => { setFormOpen(false); setForm(DEFAULT_CONTENT) }}
         title="Add to Watchlist"
       >
@@ -542,7 +453,7 @@ export default function Content() {
                 required
                 autoFocus
               />
-              
+
               {/* TMDB Search Results Dropdown */}
               {showTmdbResults && tmdbSearchResults.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
@@ -554,8 +465,8 @@ export default function Content() {
                       className="w-full flex items-center gap-3 p-3 hover:bg-purple-50 smooth-transition text-left border-b border-gray-100 last:border-0"
                     >
                       {result.poster_url ? (
-                        <img 
-                          src={result.poster_url} 
+                        <img
+                          src={result.poster_url}
                           alt={result.title}
                           className="w-12 h-16 object-cover rounded"
                         />
@@ -656,6 +567,111 @@ export default function Content() {
         cancelText="Cancel"
         type="danger"
       />
+    </div>
+  )
+}
+
+function PosterGrid({ items, onSetStatus, onDelete }) {
+  return (
+    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+      {items.map((item) => (
+        <PosterCard key={item.id} item={item} onSetStatus={onSetStatus} onDelete={onDelete} />
+      ))}
+    </div>
+  )
+}
+
+function PosterCard({ item, onSetStatus, onDelete }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+  const status = getStatus(item)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleOutsideClick = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [menuOpen])
+
+  return (
+    <div ref={menuRef} className="group relative">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 shadow-md smooth-transition group-hover:z-10 group-hover:scale-105 group-hover:shadow-pink-lg">
+        {item.poster_url ? (
+          <img src={item.poster_url} alt={item.title} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-pink-100 via-cream to-earthy-100 p-2 text-center">
+            <span className="text-xs font-semibold text-pink-700">{item.title}</span>
+          </div>
+        )}
+
+        {status === 'watching' && (
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-purple-600 px-2 py-0.5 text-[10px] font-bold text-white shadow">
+            Watching
+          </span>
+        )}
+
+        {/* Bottom gradient + title, always visible Netflix-tile style */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2 pt-8">
+          <p className="truncate text-xs font-semibold text-white">{item.title}</p>
+          {item.year && <p className="text-[10px] text-white/70">{item.year}</p>}
+        </div>
+
+        {/* Options menu button (tap-friendly, visible on hover/focus) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenuOpen((current) => !current)
+          }}
+          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 smooth-transition group-hover:opacity-100 focus:opacity-100"
+          aria-label="Options"
+        >
+          ⋮
+        </button>
+
+        {menuOpen && (
+          <div className="absolute right-1.5 top-9 z-20 w-40 overflow-hidden rounded-lg bg-white text-sm shadow-xl">
+            {status !== 'watching' && (
+              <button
+                type="button"
+                onClick={() => { onSetStatus(item, 'watching'); setMenuOpen(false) }}
+                className="block w-full px-3 py-2 text-left text-gray-700 hover:bg-pink-50"
+              >
+                ▶ Start Watching
+              </button>
+            )}
+            {status !== 'watched' && (
+              <button
+                type="button"
+                onClick={() => { onSetStatus(item, 'watched'); setMenuOpen(false) }}
+                className="block w-full px-3 py-2 text-left text-gray-700 hover:bg-pink-50"
+              >
+                ✓ Mark Watched
+              </button>
+            )}
+            {status !== 'to_watch' && (
+              <button
+                type="button"
+                onClick={() => { onSetStatus(item, 'to_watch'); setMenuOpen(false) }}
+                className="block w-full px-3 py-2 text-left text-gray-700 hover:bg-pink-50"
+              >
+                ↩ Move to Watchlist
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { onDelete(item); setMenuOpen(false) }}
+              className="block w-full px-3 py-2 text-left text-red-600 hover:bg-red-50"
+            >
+              🗑 Delete
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
