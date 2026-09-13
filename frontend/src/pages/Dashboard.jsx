@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { dashboard, feed as feedApi } from '../api'
 import toast from 'react-hot-toast'
 import LoadingSkeleton from '../components/LoadingSkeleton'
+import SafeImage from '../components/SafeImage'
 
 const CATEGORY_COLORS = {
   memory: { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', badge: 'bg-pink-100' },
@@ -24,6 +25,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [statsExpanded, setStatsExpanded] = useState(false)
+  const [feedTypeFilter, setFeedTypeFilter] = useState('all')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -94,6 +96,14 @@ export default function Dashboard() {
   }
 
   if (!stats) return null
+
+  const feedTypeCounts = feedItems.reduce((counts, item) => {
+    counts[item.type] = (counts[item.type] || 0) + 1
+    return counts
+  }, {})
+  const visibleFeedItems = feedTypeFilter === 'all'
+    ? feedItems
+    : feedItems.filter((item) => item.type === feedTypeFilter)
 
   return (
     <div className="space-y-6 slide-in-up max-w-4xl mx-auto">
@@ -172,7 +182,7 @@ export default function Dashboard() {
           <span>📰</span>
           Recent Activity
         </h2>
-        
+
         {feedItems.length === 0 ? (
           <EmptyState
             icon="💕"
@@ -182,11 +192,45 @@ export default function Dashboard() {
             onAction={() => navigate('/memories')}
           />
         ) : (
-          <div className="space-y-3">
-            {feedItems.map((item) => (
-              <FeedItem key={`${item.type}-${item.id}`} item={item} navigate={navigate} />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                onClick={() => setFeedTypeFilter('all')}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold smooth-transition ${
+                  feedTypeFilter === 'all'
+                    ? 'gradient-primary text-white shadow-pink-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-pink-50'
+                }`}
+              >
+                All ({feedItems.length})
+              </button>
+              {Object.entries(feedTypeCounts).map(([type, count]) => (
+                <button
+                  key={type}
+                  onClick={() => setFeedTypeFilter(type)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-semibold capitalize smooth-transition ${
+                    feedTypeFilter === type
+                      ? 'gradient-primary text-white shadow-pink-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-pink-50'
+                  }`}
+                >
+                  {CATEGORY_ICONS[type] || '📝'} {type} ({count})
+                </button>
+              ))}
+            </div>
+
+            {visibleFeedItems.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-pink-200 bg-pink-50 p-6 text-center text-gray-600">
+                No {feedTypeFilter} activity yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleFeedItems.map((item) => (
+                  <FeedItem key={`${item.type}-${item.id}`} item={item} navigate={navigate} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -259,9 +303,9 @@ function FeedItem({ item, navigate }) {
       <div className="flex gap-4">
         {/* Icon/Image */}
         {item.photo_url ? (
-          <img 
-            src={item.photo_url} 
-            alt={item.title} 
+          <SafeImage
+            src={item.photo_url}
+            alt={item.title}
             className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
           />
         ) : (

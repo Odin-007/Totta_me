@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import FormSheet from '../components/FormSheet'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SearchBar from '../components/SearchBar'
+import SafeImage from '../components/SafeImage'
 
 const LOCATION_TYPES = [
   'In Pune',
@@ -398,8 +399,8 @@ export default function Places() {
           >
             {/* Place Photo */}
             {place.photo_url && (
-              <img 
-                src={place.photo_url} 
+              <SafeImage
+                src={place.photo_url}
                 alt={place.name}
                 className="w-full h-48 object-cover -mt-4 -mx-4 mb-4 rounded-t-lg"
               />

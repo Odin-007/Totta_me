@@ -123,6 +123,7 @@ export default function Content() {
   const watchingItems = filteredContent.filter((item) => getStatus(item) === 'watching')
   const watchedItems = filteredContent.filter((item) => getStatus(item) === 'watched')
   const watchedCount = watchedItems.length
+  const heroItem = watchingItems[0] || toWatchItems[0]
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -266,6 +267,10 @@ export default function Content() {
         <p className="text-sm font-semibold uppercase tracking-wide text-earthy-600">Watch together</p>
         <h1 className="heading-1 gradient-text">Watchlist</h1>
       </div>
+
+      {!loading && heroItem && (
+        <WatchlistHero item={heroItem} onSetStatus={setItemStatus} />
+      )}
 
       {/* Search Bar */}
       <SearchBar
@@ -567,6 +572,54 @@ export default function Content() {
         cancelText="Cancel"
         type="danger"
       />
+    </div>
+  )
+}
+
+function WatchlistHero({ item, onSetStatus }) {
+  const [backdropFailed, setBackdropFailed] = useState(false)
+  const [trackedItemId, setTrackedItemId] = useState(item.id)
+
+  if (item.id !== trackedItemId) {
+    setTrackedItemId(item.id)
+    setBackdropFailed(false)
+  }
+
+  if (!item.backdrop_url || backdropFailed) return null
+
+  const status = getStatus(item)
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl shadow-pink-lg" style={{ aspectRatio: '16 / 7' }}>
+      <img
+        src={item.backdrop_url}
+        alt={item.title}
+        onError={() => setBackdropFailed(true)}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+        {status === 'watching' && (
+          <span className="mb-2 inline-block rounded-full bg-purple-600 px-3 py-1 text-xs font-bold text-white">
+            Continue Watching
+          </span>
+        )}
+        <h2 className="text-2xl font-bold text-white drop-shadow sm:text-3xl">{item.title}</h2>
+        {(item.year || item.genre) && (
+          <p className="mt-1 text-sm text-white/80">
+            {item.year}{item.year && item.genre ? ' • ' : ''}{item.genre}
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onSetStatus(item, status === 'watching' ? 'watched' : 'watching')}
+            className="btn-gradient px-4 py-2 text-sm"
+          >
+            {status === 'watching' ? '✓ Mark Watched' : '▶ Start Watching'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import FormSheet from '../components/FormSheet'
 import ImageGallery from '../components/ImageGallery'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SearchBar from '../components/SearchBar'
+import SafeImage from '../components/SafeImage'
 
 const MOOD_STYLES = {
   romantic: 'bg-pink-100 text-pink-700',
@@ -569,12 +570,15 @@ export default function Memories() {
 )
 }
 function MemoryImage({ memory, compact = false, onClick }) {
-  if (memory.photo_url) {
+  const [failed, setFailed] = useState(false)
+
+  if (memory.photo_url && !failed) {
     return (
       <img
         src={memory.photo_url}
         alt={memory.title}
         onClick={onClick}
+        onError={() => setFailed(true)}
         className={`${compact ? 'h-44' : 'max-h-96'} w-full cursor-pointer object-cover`}
       />
     )
@@ -661,7 +665,7 @@ function MemoryModal({ memory, onClose, onEdit, onDelete }) {
 
       {fullscreen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black p-4" onClick={() => setFullscreen(false)}>
-          <img src={memory.photo_url} alt={memory.title} className="max-h-full max-w-full rounded-lg object-contain" />
+          <SafeImage src={memory.photo_url} alt={memory.title} className="max-h-full max-w-full rounded-lg object-contain" />
         </div>
       )}
     </>
@@ -687,8 +691,8 @@ function MemoryCard({ memory, onEdit, onDelete, onSelect, onOpenGallery }) {
         <div className="relative overflow-hidden rounded-lg mb-3">
           {/* Main Photo */}
           <div className="relative cursor-pointer" onClick={() => onOpenGallery(photos, 0)}>
-            <img 
-              src={photos[0]} 
+            <SafeImage
+              src={photos[0]}
               alt={memory.title}
               className="w-full h-48 object-cover group-hover:scale-110 smooth-transition"
             />
