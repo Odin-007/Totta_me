@@ -7,6 +7,7 @@ from database import get_db
 from models import Place, User
 from schemas import PlaceCreate, PlaceResponse, PlaceUpdate
 from security import get_current_user
+from storage import sign_url, sign_urls
 
 router = APIRouter(tags=["places"])
 
@@ -14,8 +15,11 @@ router = APIRouter(tags=["places"])
 @router.get("/api/places")
 async def get_places(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     places_list = db.query(Place).all()
+
+    signed_photo_urls = await sign_urls([p.photo_url for p in places_list])
+
     result = []
-    for p in places_list:
+    for p, signed_photo_url in zip(places_list, signed_photo_urls):
         user = db.query(User).filter(User.id == p.user_id).first()
         result.append({
             "id": str(p.id),
@@ -28,7 +32,7 @@ async def get_places(current_user: User = Depends(get_current_user), db: Session
             "visited": p.visited,
             "visited_date": p.visited_date,
             "notes": p.notes,
-            "photo_url": p.photo_url,
+            "photo_url": signed_photo_url,
             "created_by": user.name if user else "Unknown",
             "created_by_initials": user.initials if user else "?",
         })
@@ -54,7 +58,8 @@ async def create_place(place: PlaceCreate, current_user: User = Depends(get_curr
         tags=new_place.tags or [],
         visited=new_place.visited,
         visited_date=new_place.visited_date,
-        notes=new_place.notes
+        notes=new_place.notes,
+        photo_url=await sign_url(new_place.photo_url)
     )
 
 
@@ -82,7 +87,7 @@ async def update_place(place_id: str, place_update: PlaceUpdate, current_user: U
         visited=place.visited,
         visited_date=place.visited_date,
         notes=place.notes,
-        photo_url=place.photo_url
+        photo_url=await sign_url(place.photo_url)
     )
 
 

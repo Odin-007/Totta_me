@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Activity, Memory, Movie, Place, User
 from security import get_current_user
+from storage import sign_urls
 
 router = APIRouter(tags=["feed"])
 
@@ -23,14 +24,15 @@ async def get_feed(
 
     # Recent memories
     memories_list = db.query(Memory).order_by(Memory.memory_date.desc()).limit(limit).all()
-    for m in memories_list:
+    signed_memory_photo_urls = await sign_urls([m.photo_url for m in memories_list])
+    for m, signed_photo_url in zip(memories_list, signed_memory_photo_urls):
         user = db.query(User).filter(User.id == m.user_id).first()
         feed_items.append({
             "id": str(m.id),
             "type": "memory",
             "title": m.title,
             "date": m.memory_date.isoformat(),
-            "photo_url": m.photo_url,
+            "photo_url": signed_photo_url,
             "mood_tags": m.mood_tags or [],
             "created_by": user.name if user else "Unknown",
             "created_by_initials": user.initials if user else "?",

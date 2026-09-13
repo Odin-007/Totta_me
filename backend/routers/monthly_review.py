@@ -10,6 +10,7 @@ from database import get_db
 from models import Activity, Memory, Movie, Place, User
 from schemas import ActivityResponse, MemoryResponse, MovieResponse, PlaceResponse
 from security import get_current_user
+from storage import sign_urls
 
 router = APIRouter(tags=["monthly-review"])
 
@@ -69,6 +70,37 @@ async def get_monthly_review(
     for tag in all_mood_tags:
         mood_summary[tag] = mood_summary.get(tag, 0) + 1
 
+    # Sign photo URLs before building responses (memories can have multiple photos)
+    memory_photo_counts = [1 + len(m.photos or []) for m in month_memories]
+    flat_memory_urls = []
+    for m in month_memories:
+        flat_memory_urls.append(m.photo_url)
+        flat_memory_urls.extend(m.photos or [])
+    signed_memory_urls = await sign_urls(flat_memory_urls)
+
+    signed_place_urls = await sign_urls([p.photo_url for p in month_places])
+
+    memories_response = []
+    cursor = 0
+    for m, count in zip(month_memories, memory_photo_counts):
+        signed_photo_url = signed_memory_urls[cursor]
+        signed_photos = signed_memory_urls[cursor + 1:cursor + count]
+        cursor += count
+        memories_response.append(MemoryResponse(
+            id=str(m.id), memory_date=m.memory_date, title=m.title,
+            notes=m.notes, photo_url=signed_photo_url, photos=signed_photos,
+            place_id=str(m.place_id) if m.place_id else None,
+            activity_id=str(m.activity_id) if m.activity_id else None,
+            mood_tags=m.mood_tags or []
+        ))
+
+    places_response = [PlaceResponse(
+        id=str(p.id), name=p.name, latitude=p.latitude,
+        longitude=p.longitude, address=p.address,
+        tags=p.tags or [], visited=p.visited,
+        visited_date=p.visited_date, notes=p.notes, photo_url=signed_photo_url
+    ) for p, signed_photo_url in zip(month_places, signed_place_urls)]
+
     return {
         "year": target_year,
         "month": target_month,
@@ -88,22 +120,11 @@ async def get_monthly_review(
             place_id=str(a.place_id) if a.place_id else None,
             mood_tags=a.mood_tags or []
         ) for a in month_activities],
-        "memories": [MemoryResponse(
-            id=str(m.id), memory_date=m.memory_date, title=m.title,
-            notes=m.notes, photo_url=m.photo_url, photos=m.photos or [],
-            place_id=str(m.place_id) if m.place_id else None,
-            activity_id=str(m.activity_id) if m.activity_id else None,
-            mood_tags=m.mood_tags or []
-        ) for m in month_memories],
+        "memories": memories_response,
         "movies": [MovieResponse(
             id=str(m.id), title=m.title, year=m.year, genre=m.genre,
             watched=m.watched, watched_date=m.watched_date,
             rating=m.rating, review=m.review, mood_tags=m.mood_tags or []
         ) for m in month_movies],
-        "places": [PlaceResponse(
-            id=str(p.id), name=p.name, latitude=p.latitude,
-            longitude=p.longitude, address=p.address,
-            tags=p.tags or [], visited=p.visited,
-            visited_date=p.visited_date, notes=p.notes, photo_url=p.photo_url
-        ) for p in month_places],
+        "places": places_response,
     }
