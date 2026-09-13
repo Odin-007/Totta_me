@@ -20,6 +20,27 @@ export default function ImageGallery({ images, isOpen, onClose, initialIndex = 0
     }
   }, [isOpen])
 
+  const goToPrevious = () => {
+    setCurrentIndex(currentIndex > 0 ? currentIndex - 1 : currentIndex)
+  }
+
+  const goToNext = () => {
+    setCurrentIndex(currentIndex < images.length - 1 ? currentIndex + 1 : currentIndex)
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') goToPrevious()
+      if (e.key === 'ArrowRight') goToNext()
+      if (e.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, currentIndex])
+
   if (!isOpen || !images || images.length === 0) return null
 
   const minSwipeDistance = 50
@@ -35,7 +56,7 @@ export default function ImageGallery({ images, isOpen, onClose, initialIndex = 0
 
   const onTouchEnd = () => {
     if (!touchStart || !touchEnd) return
-    
+
     const distance = touchStart - touchEnd
     const isLeftSwipe = distance > minSwipeDistance
     const isRightSwipe = distance < -minSwipeDistance
@@ -47,27 +68,6 @@ export default function ImageGallery({ images, isOpen, onClose, initialIndex = 0
       setCurrentIndex(currentIndex - 1)
     }
   }
-
-  const goToPrevious = () => {
-    setCurrentIndex(currentIndex > 0 ? currentIndex - 1 : currentIndex)
-  }
-
-  const goToNext = () => {
-    setCurrentIndex(currentIndex < images.length - 1 ? currentIndex + 1 : currentIndex)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowLeft') goToPrevious()
-    if (e.key === 'ArrowRight') goToNext()
-    if (e.key === 'Escape') onClose()
-  }
-
-  useEffect(() => {
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, currentIndex])
 
   return (
     <div 
